@@ -1,0 +1,563 @@
+name: 🔐 Security Analysis (SAST) - Student/Teacher Friendly
+
+# 🎓 WHAT THIS WORKFLOW DOES:
+# This automatically scans your code for security vulnerabilities using industry-standard tools.
+# It creates GitHub Issues for any security problems it finds, with detailed explanations.
+
+# 🚀 WHEN IT RUNS:
+on:
+  push:
+    branches: [main, master, develop] # Runs when you push code to main branches
+  pull_request:
+    branches: [main, master, develop] # Runs when someone creates a pull request
+  schedule:
+    # 📅 Runs automatically every Sunday at 2 AM UTC (like a weekly security checkup)
+    - cron: "0 2 * * 0"
+  workflow_dispatch: # 👆 Allows manual runs from the Actions tab
+    inputs:
+      force_run:
+        description: "🎯 Force run even if disabled (for first-time setup)"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  # 🎓 STUDENT/TEACHER FRIENDLY: Auto-enables on first manual run
+  # You don't need to change this! Just run the workflow manually once to activate it.
+  # The workflow will automatically enable itself after the first successful run.
+  SECURITY_ANALYSIS_ENABLED: false
+
+jobs:
+  setup-and-validate:
+    name: 🔧 Repository Setup & Validation
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.config.outputs.should_run }}
+      setup_complete: ${{ steps.config.outputs.setup_complete }}
+      issues_enabled: ${{ steps.config.outputs.issues_enabled }}
+    steps:
+      - name: 📋 Check Repository Configuration
+        id: config
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🎓 Welcome to Security Analysis for Students & Teachers!"
+          echo "=================================================="
+
+          # Initialize variables
+          SHOULD_RUN="false"
+          SETUP_COMPLETE="false"
+          ISSUES_ENABLED="true"
+
+          # Check if Issues are enabled in the repository
+          echo "🔍 Checking if Issues are enabled in your repository..."
+          REPO_INFO=$(gh api repos/${{ github.repository }} --jq '.has_issues')
+
+          if [ "$REPO_INFO" != "true" ]; then
+            echo ""
+            echo "🚨 CRITICAL: Issues are disabled in your repository!"
+            echo "=============================================="
+            echo ""
+            echo "⚠️  This security workflow CANNOT work without Issues enabled."
+            echo "   Security vulnerabilities are reported as GitHub Issues."
+            echo ""
+            echo "📋 Quick Fix (takes 30 seconds):"
+            echo "1. 🌐 Open your repository on GitHub.com"
+            echo "2. ⚙️  Click the 'Settings' tab (next to Code, Issues, etc.)"
+            echo "3. 📍 Scroll down to 'Features' section"
+            echo "4. ✅ Check the box next to 'Issues'"
+            echo "5. 💾 Settings save automatically"
+            echo "6. 🔄 Come back and re-run this workflow"
+            echo ""
+            echo "🎓 For Students: Ask your teacher for help if you don't see Settings tab"
+            echo "👨‍🏫 For Teachers: You may need organization admin permissions"
+            echo ""
+            echo "🛑 STOPPING WORKFLOW - Issues must be enabled first"
+            echo ""
+            ISSUES_ENABLED="false"
+            SETUP_COMPLETE="false"
+            
+            # Force the workflow to stop by setting should_run to false
+            SHOULD_RUN="false"
+            
+            # Set outputs early and exit
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "setup_complete=false" >> $GITHUB_OUTPUT  
+            echo "issues_enabled=false" >> $GITHUB_OUTPUT
+            
+            echo "📊 Final Status: BLOCKED - Issues disabled"
+            exit 0
+          else
+            echo "✅ Issues are enabled - Good!"
+            ISSUES_ENABLED="true"
+          fi
+
+          # Check if workflow should run
+          if [[ "${{ env.SECURITY_ANALYSIS_ENABLED }}" == "true" ]] || [[ "${{ github.event.inputs.force_run }}" == "true" ]]; then
+            SHOULD_RUN="true"
+            SETUP_COMPLETE="true"
+            echo ""
+            echo "✅ Security analysis is ready to run!"
+            
+            # Auto-enable the workflow if run manually for the first time
+            if [[ "${{ github.event.inputs.force_run }}" == "true" ]] && [[ "${{ env.SECURITY_ANALYSIS_ENABLED }}" == "false" ]]; then
+              echo ""
+              echo "🚀 AUTO-ENABLING: This workflow will be enabled for future automatic runs"
+              echo "   (You won't need to manually run it next time!)"
+              # Note: We'll create an issue with instructions on how to permanently enable
+            fi
+          else
+            echo ""
+            echo "ℹ️  Getting Started Instructions:"
+            echo "================================="
+            echo ""
+            echo "🎯 This is your first time! Here's how to activate security scanning:"
+            echo ""
+            echo "Option 1 - Quick Start (Recommended for beginners):"
+            echo "  1. Go to the 'Actions' tab in your repository"
+            echo "  2. Find 'Security Analysis (SAST)' workflow"
+            echo "  3. Click 'Run workflow' button"
+            echo "  4. Check 'Force run even if disabled'"
+            echo "  5. Click 'Run workflow'"
+            echo "  6. The workflow will auto-enable itself!"
+            echo ""
+            echo "Option 2 - Edit the file (For advanced users):"
+            echo "  1. Edit .github/workflows/security-analysis.yml"
+            echo "  2. Change SECURITY_ANALYSIS_ENABLED to 'true'"
+            echo "  3. Commit and push your changes"
+            echo ""
+            SHOULD_RUN="false"
+            SETUP_COMPLETE="false"
+          fi
+
+          # Set outputs
+          echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
+          echo "setup_complete=$SETUP_COMPLETE" >> $GITHUB_OUTPUT  
+          echo "issues_enabled=$ISSUES_ENABLED" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "📊 Configuration Summary:"
+          echo "- Should run analysis: $SHOULD_RUN"
+          echo "- Setup complete: $SETUP_COMPLETE"
+          echo "- Issues enabled: $ISSUES_ENABLED"
+
+      - name: 📝 Create Setup Instructions Issue (if needed)
+        if: steps.config.outputs.should_run == 'true' && env.SECURITY_ANALYSIS_ENABLED == 'false' && github.event.inputs.force_run == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "📝 Creating setup instruction issue..."
+          gh issue create --title "Security Analysis Setup" --body "Change SECURITY_ANALYSIS_ENABLED to true in the workflow file" --label "setup" || true
+
+  codeql-analysis:
+    name: 🔍 CodeQL Security Analysis
+    needs: setup-and-validate
+    if: needs.setup-and-validate.outputs.should_run == 'true' && needs.setup-and-validate.outputs.issues_enabled == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+      issues: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python", "javascript"]
+
+    steps:
+      # 📥 STEP 1: Download your code so we can analyze it
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Gets complete history for better analysis
+
+      # 🔧 STEP 2: Initialize CodeQL (GitHub's security scanner)
+      - name: 🔧 Initialize CodeQL Scanner
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml # Uses custom security rules
+
+      # 🐍 STEP 3: Setup Python environment (only for Python files)
+      - name: 🐍 Setup Python Environment
+        if: matrix.language == 'python'
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11" # Modern Python version
+
+      # 📦 STEP 4: Install Python dependencies (so scanner understands imports)
+      - name: 📦 Install Python Dependencies
+        if: matrix.language == 'python'
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # 🟨 STEP 5: Setup Node.js environment (only for JavaScript files)
+      - name: 🟨 Setup Node.js Environment
+        if: matrix.language == 'javascript'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18" # Modern Node.js version
+
+      # 📦 STEP 6: Install JavaScript dependencies
+      - name: 📦 Install JavaScript Dependencies
+        if: matrix.language == 'javascript'
+        run: |
+          if [ -f package.json ]; then npm ci; fi
+
+      # 🔍 STEP 7: Run the actual security analysis
+      - name: 🔍 Perform Security Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+          output: sarif-results # Saves results in industry-standard format
+          upload: false # We'll handle the upload ourselves
+
+      # 📤 STEP 8: Upload results to GitHub Security tab
+      - name: 📤 Upload Security Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sarif-results/${{ matrix.language }}.sarif
+          category: "/language:${{ matrix.language }}"
+
+      # 🎫 STEP 9: Create GitHub Issues for each security finding
+      - name: 🎫 Create Issues for Security Problems Found
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LANGUAGE: ${{ matrix.language }}
+        run: |
+          # Create required labels if they don't exist
+          gh label create "security" --description "Security-related issues" --color "d73a4a" || true
+          gh label create "codeql" --description "Issues found by CodeQL analysis" --color "f1c40f" || true
+          gh label create "${{ matrix.language }}" --description "${{ matrix.language }} language issues" --color "3572A5" || true
+          gh label create "automated" --description "Automatically generated issues" --color "0052cc" || true
+
+          # Install jq if not available
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+          SARIF_FILE="sarif-results/${{ matrix.language }}.sarif"
+
+          if [ ! -f "$SARIF_FILE" ]; then
+            echo "No SARIF file found for ${{ matrix.language }}"
+            exit 0
+          fi
+
+          # Check if SARIF file has results
+          RESULT_COUNT=$(jq '.runs[0].results | length' "$SARIF_FILE" 2>/dev/null || echo "0")
+
+          if [ "$RESULT_COUNT" -eq 0 ]; then
+            echo "No security issues found for ${{ matrix.language }}"
+            exit 0
+          fi
+
+          echo "Found $RESULT_COUNT security issues for ${{ matrix.language }}"
+
+          # Process each result
+          jq -c '.runs[0].results[]' "$SARIF_FILE" | while read -r result; do
+            # Extract key information
+            RULE_ID=$(echo "$result" | jq -r '.ruleId')
+            MESSAGE=$(echo "$result" | jq -r '.message.text')
+            LEVEL=$(echo "$result" | jq -r '.level // "warning"')
+            
+            # Extract location information
+            LOCATION=$(echo "$result" | jq -r '.locations[0].physicalLocation')
+            FILE_PATH=$(echo "$LOCATION" | jq -r '.artifactLocation.uri // "unknown"')
+            START_LINE=$(echo "$LOCATION" | jq -r '.region.startLine // "unknown"')
+            END_LINE=$(echo "$LOCATION" | jq -r '.region.endLine // .region.startLine // "unknown"')
+            
+            # Get rule description from tool info
+            RULE_DESC=$(jq -r --arg rule_id "$RULE_ID" '.runs[0].tool.driver.rules[] | select(.id == $rule_id) | .shortDescription.text // .fullDescription.text // "No description available"' "$SARIF_FILE")
+            
+            # Create severity label
+            case "$LEVEL" in
+              "error"|"high") SEVERITY="🔴 High" ;;
+              "warning"|"medium") SEVERITY="🟡 Medium" ;;
+              "note"|"low") SEVERITY="🟢 Low" ;;
+              *) SEVERITY="🟡 Medium" ;;
+            esac
+
+            # Generate unique issue title
+            ISSUE_TITLE="[Security] $RULE_ID in $FILE_PATH (Line $START_LINE)"
+            
+            # Check if issue already exists
+            EXISTING_ISSUE=$(gh issue list --label "security,codeql,${{ matrix.language }}" --state open --json title,number | jq -r --arg title "$ISSUE_TITLE" '.[] | select(.title == $title) | .number')
+            
+            if [ -n "$EXISTING_ISSUE" ] && [ "$EXISTING_ISSUE" != "null" ]; then
+              echo "Issue already exists: #$EXISTING_ISSUE"
+              continue
+            fi
+
+            # Create issue body
+            LINE_RANGE="$START_LINE"
+            if [ "$END_LINE" != "$START_LINE" ] && [ "$END_LINE" != "unknown" ]; then
+              LINE_RANGE="$START_LINE-$END_LINE"
+            fi
+
+            # Build issue body safely
+            ISSUE_BODY_CONTENT="## Security Vulnerability Detected\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}Severity: $SEVERITY\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}Rule: \`$RULE_ID\`\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}Language: ${{ matrix.language }}\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}File: \`$FILE_PATH\`\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}Line(s): $LINE_RANGE\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}### Description\n$RULE_DESC\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}### Details\n$MESSAGE\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}### Location\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- File: [\`$FILE_PATH\`](https://github.com/${{ github.repository }}/blob/${{ github.sha }}/$FILE_PATH#L$START_LINE)\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Line: $LINE_RANGE\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}### Analysis Information\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Detected by: CodeQL Security Analysis\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Workflow Run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Commit: [\`${{ github.sha }}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Branch: \`${{ github.ref_name }}\`\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}### Next Steps\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}1. Review the code at the specified location\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}2. Assess if this is a true positive or false positive\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}3. If valid, implement appropriate security fixes\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}4. Consider adding input validation, output encoding, or other security controls\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}5. Re-run the security analysis to verify the fix\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}---\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}This issue was automatically created by the Security Analysis workflow. Please review and address the security concern."
+            
+            # Convert to proper format
+            printf -v ISSUE_BODY "%b" "$ISSUE_BODY_CONTENT"
+
+            # Create the issue
+            echo "Creating issue for $RULE_ID in $FILE_PATH:$START_LINE"
+            gh issue create \
+              --title "$ISSUE_TITLE" \
+              --body "$ISSUE_BODY" \
+              --label "security,codeql,${{ matrix.language }},automated" \
+              --assignee "${{ github.actor }}" || true
+
+            # Add a small delay to avoid rate limiting
+            sleep 2
+          done
+
+  bandit-analysis:
+    name: 🐍 Bandit Python Security Analysis
+    needs: setup-and-validate
+    if: needs.setup-and-validate.outputs.should_run == 'true' && needs.setup-and-validate.outputs.issues_enabled == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      # 📥 STEP 1: Get the code to analyze
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      # 🐍 STEP 2: Setup Python (Bandit only works with Python)
+      - name: 🐍 Setup Python Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      # 📦 STEP 3: Install Bandit security scanner and project dependencies
+      - name: 📦 Install Security Scanner and Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit[toml]  # Bandit is the Python security scanner
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # 🔍 STEP 4: Run Bandit security analysis on all Python files
+      - name: 🔍 Run Python Security Scan
+        run: |
+          echo "🔍 Scanning Python code for security issues..."
+          bandit -r . -f json -o bandit-report.json --severity-level medium --exclude ./.student_resources || true
+          echo "📄 Security scan complete! Results saved to bandit-report.json"
+
+      # 🎫 STEP 5: Turn security findings into GitHub Issues
+      - name: 🎫 Create Issues for Python Security Problems
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create required labels if they don't exist
+          gh label create "security" --description "Security-related issues" --color "d73a4a" || true
+          gh label create "bandit" --description "Issues found by Bandit security linter" --color "f9c23c" || true
+          gh label create "python" --description "Python-related issues" --color "3572A5" || true
+          gh label create "automated" --description "Automatically generated issues" --color "0052cc" || true
+
+          if [ ! -f bandit-report.json ]; then
+            echo "No Bandit report generated"
+            exit 0
+          fi
+
+          # Check if there are any results
+          RESULT_COUNT=$(jq '.results | length' bandit-report.json 2>/dev/null || echo "0")
+
+          if [ "$RESULT_COUNT" -eq 0 ]; then
+            echo "No security issues found by Bandit"
+            exit 0
+          fi
+
+          echo "Found $RESULT_COUNT security issues with Bandit"
+
+          # Process each result
+          jq -c '.results[]' bandit-report.json | while read -r result; do
+            TEST_ID=$(echo "$result" | jq -r '.test_id')
+            TEST_NAME=$(echo "$result" | jq -r '.test_name')
+            FILENAME=$(echo "$result" | jq -r '.filename')
+            LINE_NUMBER=$(echo "$result" | jq -r '.line_number')
+            ISSUE_TEXT=$(echo "$result" | jq -r '.issue_text')
+            ISSUE_SEVERITY=$(echo "$result" | jq -r '.issue_severity')
+            ISSUE_CONFIDENCE=$(echo "$result" | jq -r '.issue_confidence')
+            CODE=$(echo "$result" | jq -r '.code')
+
+            # Create severity label
+            case "$ISSUE_SEVERITY" in
+              "HIGH") SEVERITY="🔴 High" ;;
+              "MEDIUM") SEVERITY="🟡 Medium" ;;
+              "LOW") SEVERITY="🟢 Low" ;;
+              *) SEVERITY="🟡 Medium" ;;
+            esac
+
+            # Generate unique issue title
+            ISSUE_TITLE="[Bandit] $TEST_NAME in $(basename "$FILENAME") (Line $LINE_NUMBER)"
+            
+            # Check if issue already exists
+            EXISTING_ISSUE=$(gh issue list --label "security,bandit,python" --state open --json title,number | jq -r --arg title "$ISSUE_TITLE" '.[] | select(.title == $title) | .number')
+            
+            if [ -n "$EXISTING_ISSUE" ] && [ "$EXISTING_ISSUE" != "null" ]; then
+              echo "Issue already exists: #$EXISTING_ISSUE"
+              continue
+            fi
+
+            # Create issue body
+            ISSUE_BODY_CONTENT="## Python Security Issue Detected (Bandit)\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}Severity: $SEVERITY\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}Confidence: $ISSUE_CONFIDENCE\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}Test: \`$TEST_ID\` - $TEST_NAME\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}File: \`$FILENAME\`\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}Line: $LINE_NUMBER\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}### Issue Description\n$ISSUE_TEXT\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}### Code Context\n\`\`\`python\n$CODE\n\`\`\`\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}### Location\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- File: [\`$FILENAME\`](https://github.com/${{ github.repository }}/blob/${{ github.sha }}/$FILENAME#L$LINE_NUMBER)\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Line: $LINE_NUMBER\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}### Analysis Information\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Detected by: Bandit Python Security Linter\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Test ID: $TEST_ID\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Workflow Run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Commit: [\`${{ github.sha }}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}- Branch: \`${{ github.ref_name }}\`\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}### Recommendations\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}1. Review the flagged code for potential security vulnerabilities\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}2. Consider implementing proper input validation and sanitization\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}3. Use secure coding practices for the identified issue type\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}4. Test the fix thoroughly before deployment\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}5. Re-run Bandit to verify the issue is resolved\n\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}---\n"
+            ISSUE_BODY_CONTENT="${ISSUE_BODY_CONTENT}This issue was automatically created by the Bandit Security Analysis workflow. Please review and address the security concern."
+            
+            # Convert to proper format
+            printf -v ISSUE_BODY "%b" "$ISSUE_BODY_CONTENT"
+
+            # Create the issue
+            echo "Creating Bandit issue for $TEST_NAME in $FILENAME:$LINE_NUMBER"
+            gh issue create \
+              --title "$ISSUE_TITLE" \
+              --body "$ISSUE_BODY" \
+              --label "security,bandit,python,automated" \
+              --assignee "${{ github.actor }}" || true
+
+            # Add a small delay to avoid rate limiting
+            sleep 2
+          done
+
+  security-summary:
+    name: 📊 Security Analysis Summary
+    needs: [setup-and-validate, codeql-analysis, bandit-analysis]
+    if: always() && needs.setup-and-validate.outputs.should_run == 'true' && needs.setup-and-validate.outputs.issues_enabled == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      # 📊 STEP: Generate user-friendly security summary
+      - name: 📊 Generate Security Summary Report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "# �️ Security Analysis Complete!"
+          echo "=================================="
+          echo ""
+          echo "**📅 Analysis Date:** $(date)"
+          echo "**🔄 Workflow Run:** #${{ github.run_number }}"
+          echo "**📝 Commit:** [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})"
+          echo "**🌿 Branch:** \`${{ github.ref_name }}\`"
+          echo ""
+
+          # Count security issues with student-friendly explanations
+          echo "🔍 Checking for open security issues..."
+          SECURITY_ISSUES=$(gh issue list --label "security" --state open --json number 2>/dev/null | jq '. | length' 2>/dev/null || echo "0")
+          CODEQL_ISSUES=$(gh issue list --label "security,codeql" --state open --json number 2>/dev/null | jq '. | length' 2>/dev/null || echo "0")
+          BANDIT_ISSUES=$(gh issue list --label "security,bandit" --state open --json number 2>/dev/null | jq '. | length' 2>/dev/null || echo "0")
+
+          # Ensure variables are numbers
+          SECURITY_ISSUES=${SECURITY_ISSUES:-0}
+          CODEQL_ISSUES=${CODEQL_ISSUES:-0}
+          BANDIT_ISSUES=${BANDIT_ISSUES:-0}
+
+          echo ""
+          echo "## 📋 Security Issue Summary"
+          echo ""
+          echo "| 🔍 Scanner | 🎫 Open Issues | 📝 Description |"
+          echo "|------------|----------------|-----------------|"
+          echo "| **🔍 CodeQL** | $CODEQL_ISSUES | Advanced code analysis (Python & JavaScript) |"
+          echo "| **🐍 Bandit** | $BANDIT_ISSUES | Python-specific security checks |"
+          echo "| **📊 Total** | **$SECURITY_ISSUES** | All security issues combined |"
+          echo ""
+
+          if [ "$SECURITY_ISSUES" -gt 0 ] 2>/dev/null; then
+            echo "## ⚠️ Action Needed"
+            echo ""
+            echo "Your code has **$SECURITY_ISSUES security issues** that need attention!"
+            echo ""
+            echo "### 👨‍🎓 For Students:"
+            echo "1. 📖 Read each issue carefully - they contain learning opportunities"
+            echo "2. 🤔 Try to understand why each issue is a security concern"  
+            echo "3. 💡 Ask questions if you don't understand something"
+            echo "4. 🔧 Fix the issues and learn secure coding practices"
+            echo ""
+            echo "### 👨‍🏫 For Teachers:"
+            echo "1. 📚 Use these issues as teaching moments about security"
+            echo "2. 🎯 Focus on the highest severity issues first (🔴 High)"
+            echo "3. 💭 Discuss why each vulnerability is dangerous"
+            echo "4. ✅ Verify student fixes address the root cause"
+            echo ""
+            echo "## 🎫 Recent Security Issues:"
+            gh issue list --label "security" --state open --limit 10 --json number,title,url,labels 2>/dev/null | jq -r '.[] | "- [#\(.number)](\(.url)) \(.title) " + (if (.labels | map(.name) | contains(["high"])) then "🔴" elif (.labels | map(.name) | contains(["medium"])) then "🟡" else "🟢" end)' 2>/dev/null || echo "- Error retrieving issues (this is usually temporary)"
+          else
+            echo "## ✅ Excellent Work!"
+            echo ""
+            echo "🎉 **No security issues found!** Your code looks secure."
+            echo ""
+            echo "### 👏 What this means:"
+            echo "- Your code follows good security practices"
+            echo "- No obvious vulnerabilities were detected"  
+            echo "- You're building secure applications!"
+            echo ""
+            echo "### 🚀 Keep it up by:"
+            echo "- Continue following secure coding practices"
+            echo "- Keep dependencies up to date"
+            echo "- Run security scans regularly"
+            echo "- Stay curious about security topics"
+          fi
+
+          echo ""
+          echo "---"
+          echo "🔗 **Useful Links:**"
+          echo "- 📊 [View all security issues](https://github.com/${{ github.repository }}/issues?q=is%3Aissue+is%3Aopen+label%3Asecurity)"
+          echo "- 🛡️ [Security tab](https://github.com/${{ github.repository }}/security)"  
+          echo "- 🎯 [This workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          echo ""
+          echo "💡 **Need help?** Create an issue with the \`help-needed\` label and tag your teacher!"
