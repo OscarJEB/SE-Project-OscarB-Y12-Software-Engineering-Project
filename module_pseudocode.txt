@@ -1,0 +1,22 @@
+User Presses LEND FILM 
+
+borrower name = input the name of the person who is borrowing this film
+
+ADD entry to lent_films
+ id = film_id
+ film_name = film_name
+ borrower_name = borrower name
+ date_lent = current date/time
+ is_borrowed = True
+
+Set timer for one week
+    if timer ends
+    notify user: name of lent film, borrower name, date lent 
+    set new timer
+
+Change LEND FILM to FILM RETURNED
+
+If user presses FILM RETURNED
+    change FILM RETURNED to LEND FILM
+    Set is_borrowed to false
+    Delete corresponding timer
