@@ -2,6 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <a href="/logout">← Switch Profile / Back to Login</a>
+    <!-- return/logout button -->
     <title>Media Tracker - Collection</title>
     <style>
       /* This hides the lend link by default */
@@ -16,9 +18,30 @@
         opacity: 1;
       }
     </style>
+    <style>
+      /* Ensure the movie container can position child elements */
+      .film-item {
+        position: relative;
+      }
+
+      /* Hide the delete button by default */
+      .delete-btn {
+        display: none;
+        color: #ff4d4d;
+        text-decoration: none;
+        font-weight: bold;
+        margin-left: 10px;
+      }
+
+      /* Show the delete button when hovering over the film row/card */
+      .film-item:hover .delete-btn {
+        display: inline-block;
+      }
+    </style>
   </head>
   <body>
     <h1>Film Collection</h1>
+    <a href="/import" class="button">+ Import list of films from Letterboxd</a>
 
     <!-- Adding a film will include having you pick from physical or digital, then forcing you to pick out of the options for that format. -->
     <!-- Add Film Form -->
@@ -58,23 +81,37 @@
     <hr />
 
     <!-- Clean Collection List -->
-    <h2>Your Films</h2>
     <ul>
-      {% for film in films %}
-      <li>
-        <strong>{{ film.title }}</strong> — {{ film.format }} {% if
-        film.collection_name %} [{{ film.collection_name }}] {% endif %} {% if
-        film.notes %} <em>({{ film.notes }})</em> {% endif %} {% if film.is_lent
-        %}
-        <span style="color: red; margin-left: 10px">• Currently Lent Out</span>
-        {% else %}
-        <a href="/lend/{{ film.id }}" class="lend-btn">[Lend Out]</a>
-        {% endif %}
-      </li>
-      {% else %}
-      <li>No films in collection yet!</li>
-      {% endfor %}
-    </ul>
-    <!-- lists each film and its information including lent status, or no film if there are no entries to display. -->
-  </body>
+{% for film in films %}
+  <li class="film-item">
+    <!-- Film details -->
+    <span><strong>{{ film.title }}</strong> ({{ film.format }})</span>
+
+    {% if film.is_lent %}
+      <!-- Borrower info & Return button -->
+      <span style="color: #09534f; margin-left: 10px;">
+        Borrowed by <strong>{{ film.borrower_name }}</strong> ({{ film.date_lent }})
+      </span>
+
+      <form action="/return_film/{{ film.id }}" method="POST" style="display: inline; margin-left: 10px;">
+        <button type="submit" style="background: #5cb85c; color: white; border: none; padding: 3px 8px; cursor: pointer; border-radius: 3px;">
+          Film Returned
+        </button>
+      </form>
+    {% else %}
+      <!-- Hovering Lend Link -->
+      <a href="/lend/{{ film.id }}" class="lend-btn">[Lend Out]</a>
+    {% endif %}
+
+    <!-- Delete button (Only appears on hover) -->
+    <a href="/delete_film/{{ film.id }}" 
+       class="delete-btn" 
+       onclick="return confirm('Are you sure you want to delete {{ film.title }}?');">
+      🗑 Delete
+    </a>
+  </li>
+{% else %}
+  <li>No films in collection yet!</li>
+{% endfor %}
+</ul>
 </html>

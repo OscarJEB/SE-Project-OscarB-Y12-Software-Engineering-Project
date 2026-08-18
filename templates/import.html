@@ -1,0 +1,21 @@
+{% extends 'layout.html' %} {% block content %}
+<a href="/collection">← Back to Collection</a>
+<h1>Import CSV (letterboxd list file format excepted only)</h1>
+
+<form action="/import" method="POST" enctype="multipart/form-data" class="box">
+  <div class="input__wrapper">
+    <label>Select CSV File:</label><br /><br />
+    <input type="file" name="csv_file" accept=".csv" required />
+  </div>
+  <br />
+  <div class="input__wrapper">
+    <label>Media Type:</label><br />
+    <select name="media_type" class="input__field" required>
+      <option value="Physical" selected>Physical</option>
+      <option value="Digital">Digital</option>
+    </select>
+  </div>
+  <br />
+  <button type="submit">Upload & Review Films</button>
+</form>
+{% endblock %}
