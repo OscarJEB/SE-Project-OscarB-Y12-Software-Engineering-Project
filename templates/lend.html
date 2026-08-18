@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Lend Film - {{ film.title }}</title>
+  </head>
+  <body>
+    <h1>Lend Out Movie</h1>
+    <p>
+      You are lending: <strong>{{ film.title }}</strong> ({{ film.format }})
+    </p>
+    <!-- film title in bold to increase readability -->
+
+    <form action="/lend_film/{{ film.id }}" method="POST">
+      <input
+        type="text"
+        name="borrower_name"
+        placeholder="Borrower's Name"
+        required
+      />
+      <button type="submit">Confirm Lend</button>
+    </form>
+
+    <br />
+    <a href="/collection">← Back to Collection</a>
+  </body>
+</html>

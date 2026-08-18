@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Media Tracker - Collection</title>
+    <style>
+      /* This hides the lend link by default */
+      .lend-btn {
+        opacity: 0;
+        transition: opacity 0.15s ease-in-out;
+        margin-left: 10px;
+      }
+
+      /* This is to show the lend link only when hovering over that specific row */
+      li:hover .lend-btn {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Film Collection</h1>
+
+    <!-- Adding a film will include having you pick from physical or digital, then forcing you to pick out of the options for that format. -->
+    <!-- Add Film Form -->
+    <form action="/add_film" method="POST">
+      <h3>Add New Title</h3>
+      <input type="text" name="title" placeholder="Film Title" required />
+
+      <select name="format" required>
+        <option value="" disabled selected>Select Format...</option>
+        <optgroup label="Physical">
+          <option value="4K Ultra HD">4K Ultra HD</option>
+          <option value="Blu-ray">Blu-ray</option>
+          <option value="DVD">DVD</option>
+        </optgroup>
+        <optgroup label="Digital">
+          <option value="Apple TV">Apple TV</option>
+          <option value="Prime Video">Prime Video</option>
+          <option value="YouTube">YouTube</option>
+          <option value="Google Play">Google Play</option>
+        </optgroup>
+      </select>
+
+      <input
+        type="text"
+        name="collection_name"
+        placeholder="Boxset Name (Optional)"
+      />
+      <input
+        type="text"
+        name="edition_notes"
+        placeholder="Notes e.g. Extended Cut (Optional)"
+      />
+
+      <button type="submit">Add Movie</button>
+    </form>
+
+    <hr />
+
+    <!-- Clean Collection List -->
+    <h2>Your Films</h2>
+    <ul>
+      {% for film in films %}
+      <li>
+        <strong>{{ film.title }}</strong> — {{ film.format }} {% if
+        film.collection_name %} [{{ film.collection_name }}] {% endif %} {% if
+        film.notes %} <em>({{ film.notes }})</em> {% endif %} {% if film.is_lent
+        %}
+        <span style="color: red; margin-left: 10px">• Currently Lent Out</span>
+        {% else %}
+        <a href="/lend/{{ film.id }}" class="lend-btn">[Lend Out]</a>
+        {% endif %}
+      </li>
+      {% else %}
+      <li>No films in collection yet!</li>
+      {% endfor %}
+    </ul>
+    <!-- lists each film and its information including lent status, or no film if there are no entries to display. -->
+  </body>
+</html>
