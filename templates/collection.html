@@ -2,51 +2,28 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <a href="/logout">← Switch Profile / Back to Login</a>
-    <!-- return/logout button -->
     <title>Media Tracker - Collection</title>
-    <style>
-      /* This hides the lend link by default */
-      .lend-btn {
-        opacity: 0;
-        transition: opacity 0.15s ease-in-out;
-        margin-left: 10px;
-      }
-
-      /* This is to show the lend link only when hovering over that specific row */
-      li:hover .lend-btn {
-        opacity: 1;
-      }
-    </style>
-    <style>
-      /* Ensure the movie container can position child elements */
-      .film-item {
-        position: relative;
-      }
-
-      /* Hide the delete button by default */
-      .delete-btn {
-        display: none;
-        color: #ff4d4d;
-        text-decoration: none;
-        font-weight: bold;
-        margin-left: 10px;
-      }
-
-      /* Show the delete button when hovering over the film row/card */
-      .film-item:hover .delete-btn {
-        display: inline-block;
-      }
-    </style>
+    <!-- Link to your CSS file -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
   </head>
   <body>
-    <h1>Film Collection</h1>
-    <a href="/import" class="button">+ Import list of films from Letterboxd</a>
+    <header>
+      <h1>Film Collection</h1>
+      <a href="/logout">← Switch Profile / Back to Login</a>
+    </header>
 
-    <!-- Adding a film will include having you pick from physical or digital, then forcing you to pick out of the options for that format. -->
+    <a href="/import" class="button-btn"
+      >+ Import list of films from Letterboxd</a
+    >
+
+    <br /><br />
+
     <!-- Add Film Form -->
     <form action="/add_film" method="POST">
-      <h3>Add New Title</h3>
+      <h2>Add New Title</h2>
       <input type="text" name="title" placeholder="Film Title" required />
 
       <select name="format" required>
@@ -78,40 +55,68 @@
       <button type="submit">Add Movie</button>
     </form>
 
-    <hr />
-
     <!-- Clean Collection List -->
     <ul>
-{% for film in films %}
-  <li class="film-item">
-    <!-- Film details -->
-    <span><strong>{{ film.title }}</strong> ({{ film.format }})</span>
+      {% for film in films %}
+      <li class="film-item">
+        <div class="film-info">
+          <span class="film-title">{{ film.title }}</span>
+          <span class="film-format">{{ film.format }}</span>
 
-    {% if film.is_lent %}
-      <!-- Borrower info & Return button -->
-      <span style="color: #09534f; margin-left: 10px;">
-        Borrowed by <strong>{{ film.borrower_name }}</strong> ({{ film.date_lent }})
-      </span>
+          {% if film.collection_name %}
+          <span class="film-notes">— {{ film.collection_name }}</span>
+          {% endif %} {% if film.notes %}
+          <span class="film-notes">[{{ film.notes }}]</span>
+          {% endif %}
+        </div>
 
-      <form action="/return_film/{{ film.id }}" method="POST" style="display: inline; margin-left: 10px;">
-        <button type="submit" style="background: #5cb85c; color: white; border: none; padding: 3px 8px; cursor: pointer; border-radius: 3px;">
-          Film Returned
-        </button>
-      </form>
-    {% else %}
-      <!-- Hovering Lend Link -->
-      <a href="/lend/{{ film.id }}" class="lend-btn">[Lend Out]</a>
-    {% endif %}
+        <div class="actions">
+          {% if film.is_lent %}
+          <span style="color: #34d399; font-size: 0.85rem">
+            Borrowed by <strong>{{ film.borrower_name }}</strong> ({{
+            film.date_lent }})
+          </span>
 
-    <!-- Delete button (Only appears on hover) -->
-    <a href="/delete_film/{{ film.id }}" 
-       class="delete-btn" 
-       onclick="return confirm('Are you sure you want to delete {{ film.title }}?');">
-      🗑 Delete
-    </a>
-  </li>
-{% else %}
-  <li>No films in collection yet!</li>
-{% endfor %}
-</ul>
+          <form
+            action="/return_film/{{ film.id }}"
+            method="POST"
+            style="
+              display: inline;
+              margin: 0;
+              padding: 0;
+              background: none;
+              border: none;
+            "
+          >
+            <button
+              type="submit"
+              style="
+                background: #10b981;
+                padding: 0.3rem 0.6rem;
+                font-size: 0.8rem;
+              "
+            >
+              Returned
+            </button>
+          </form>
+          {% else %}
+          <!-- Hovering Lend Link -->
+          <a href="/lend/{{ film.id }}" class="lend-btn">[Lend Out]</a>
+          {% endif %}
+
+          <!-- Hovering Delete Button -->
+          <a
+            href="/delete_film/{{ film.id }}"
+            class="delete-btn"
+            onclick="return confirm('Are you sure you want to delete {{ film.title }}?');"
+          >
+            🗑
+          </a>
+        </div>
+      </li>
+      {% else %}
+      <li>No films in collection yet!</li>
+      {% endfor %}
+    </ul>
+  </body>
 </html>

@@ -20,9 +20,7 @@
     <label>Format:</label>
     <select name="format" class="input__field" required>
       {% if media_type == 'Physical' %}
-      <option value="4K UHD" {% if film.notes="" ="4k" %}selected{% endif %}>
-        4K UHD
-      </option>
+      <option value="4K UHD">4K UHD</option>
       <option value="Blu-ray">Blu-ray</option>
       <option value="DVD">DVD</option>
       {% else %}

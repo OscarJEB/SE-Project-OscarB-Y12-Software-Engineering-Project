@@ -12,12 +12,15 @@ from datetime import datetime, timedelta
 import csv
 import io
 
-# Code snippet for logging a message
-# app.logger.critical("message")
-
 app = Flask(__name__)
 CORS(app)
 app.secret_key = "media_tracker"
+
+
+def get_db_connection():
+    conn = sqlite3.connect("database_files/database.db")
+    conn.row_factory = sqlite3.Row  # Access columns by name in Jinja templates
+    return conn
 
 
 @app.route("/index.html", methods=["POST", "GET", "PUT", "PATCH", "DELETE"])
@@ -30,45 +33,44 @@ def home():
     users = conn.execute("SELECT id, username FROM users").fetchall()
     conn.close()
 
-    return render_template("index.html", users=users)
+    # Catch any error flags passed in URL parameters
+    error = request.args.get("error")
+    return render_template("index.html", users=users, error=error)
 
 
 @app.route("/login", methods=["POST"])
 def login():
-    user_id = request.form["user_id"]
-    entered_pin = request.form["pin"]
+    user_id = request.form.get("user_id")
+    pin = request.form.get("pin", "").strip()
+
+    if not user_id or not pin:
+        return redirect("/?error=missing_info")
 
     conn = get_db_connection()
-    user = conn.execute(
-        "SELECT * FROM users WHERE id = ? AND pin = ?", (user_id, entered_pin)
-    ).fetchone()
+    user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
 
-    if user:
+    # Reject access if PIN does not match
+    if user and str(user["pin"]) == pin:
         session["user_id"] = user["id"]
         session["username"] = user["username"]
         return redirect("/collection")
-    # ensure the user matches the session
     else:
-        conn = get_db_connection()
-        users = conn.execute("SELECT id, username FROM users").fetchall()
-        conn.close()
-        return render_template("index.html", users=users, error="Incorrect PIN")
-    # without correct PIN, display error message.
-
-
-def get_db_connection():
-    conn = sqlite3.connect("database_files/database.db")
-    conn.row_factory = sqlite3.Row  # Access columns by name in Jinja templates
-    return conn
+        # Incorrect PIN — send back to profile selection with error parameter
+        return redirect("/?error=invalid_pin")
 
 
 @app.route("/collection")
 def collection():
+    if "user_id" not in session:
+        return redirect("/")
+
     conn = get_db_connection()
-    # 1. Get all films
-    films_raw = conn.execute("SELECT * FROM films").fetchall()
-    # defining the page where the collection is found, which accesses everything in the 'films' database, and renders it.
+
+    # 1. Get films belonging STRICTLY to the logged-in user
+    films_raw = conn.execute(
+        "SELECT * FROM films WHERE user_id = ?", (session["user_id"],)
+    ).fetchall()
 
     # Convert SQL rows to dictionaries to easily attach borrower info
     films = [dict(film) for film in films_raw]
@@ -86,12 +88,16 @@ def collection():
                 film["date_lent"] = lent_info["date_lent"]
 
     conn.close()
-    return render_template("collection.html", films=films)
+    return render_template(
+        "collection.html", films=films, username=session.get("username")
+    )
 
 
-# add film page, with different fields to fill in film information \/
 @app.route("/add_film", methods=["POST"])
 def add_film():
+    if "user_id" not in session:
+        return redirect("/")
+
     title = request.form["title"]
     format_type = request.form["format"]
     collection_name = request.form.get("collection_name", "")
@@ -102,41 +108,46 @@ def add_film():
     media_type = "Digital" if format_type in digital_formats else "Physical"
 
     conn = get_db_connection()
+    # Saves under current logged-in user instead of hardcoded ID 1
     conn.execute(
         """
         INSERT INTO films (user_id, title, media_type, format, collection_name, notes)
         VALUES (?, ?, ?, ?, ?, ?)
     """,
-        (1, title, media_type, format_type, collection_name, notes),
+        (session["user_id"], title, media_type, format_type, collection_name, notes),
     )
     conn.commit()
     conn.close()
     return redirect("/collection")
 
 
-# eg: 1, Scott Pilgrim vs. the World, digital, Amazon Prime
-# default user id, the title, that it is found digitally, where you can find it, and no entries for the last two because it is not in a collection, and no other notes, but you could add if it was just a rental or if it was a director's cut.
-# only title and format_type will actually display though.
-# submitting the film entry into the database, then returning to the collection so you can see it there.
-
-
 @app.route("/lend/<int:film_id>")
 def lend_page(film_id):
+    if "user_id" not in session:
+        return redirect("/")
+
     conn = get_db_connection()
-    # find the film by its ID
-    film = conn.execute("SELECT * FROM films WHERE id = ?", (film_id,)).fetchone()
+    film = conn.execute(
+        "SELECT * FROM films WHERE id = ? AND user_id = ?",
+        (film_id, session["user_id"]),
+    ).fetchone()
     conn.close()
+
+    if not film:
+        return redirect("/collection")
 
     return render_template("lend.html", film=film)
 
 
 @app.route("/lend_film/<int:film_id>", methods=["POST"])
 def lend_film(film_id):
+    if "user_id" not in session:
+        return redirect("/")
+
     borrower_name = request.form["borrower_name"]
     date_lent = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     conn = get_db_connection()
-    # get the time of lending
     conn.execute(
         """
         INSERT INTO lent_films (film_id, borrower_name, date_lent, is_borrowed)
@@ -145,8 +156,11 @@ def lend_film(film_id):
         (film_id, borrower_name, date_lent),
     )
 
-    # Update film status
-    conn.execute("UPDATE films SET is_lent = 1 WHERE id = ?", (film_id,))
+    # Update film status for logged-in user
+    conn.execute(
+        "UPDATE films SET is_lent = 1 WHERE id = ? AND user_id = ?",
+        (film_id, session["user_id"]),
+    )
     conn.commit()
     conn.close()
 
@@ -155,13 +169,18 @@ def lend_film(film_id):
 
 @app.route("/return_film/<int:film_id>", methods=["POST"])
 def return_film(film_id):
+    if "user_id" not in session:
+        return redirect("/")
+
     conn = get_db_connection()
-    # Mark as returned in lending log and film collection
     conn.execute(
         "UPDATE lent_films SET is_borrowed = 0 WHERE film_id = ? AND is_borrowed = 1",
         (film_id,),
     )
-    conn.execute("UPDATE films SET is_lent = 0 WHERE id = ?", (film_id,))
+    conn.execute(
+        "UPDATE films SET is_lent = 0 WHERE id = ? AND user_id = ?",
+        (film_id, session["user_id"]),
+    )
     conn.commit()
     conn.close()
 
@@ -170,8 +189,8 @@ def return_film(film_id):
 
 @app.route("/logout")
 def logout():
-    session.clear()  # Clears the logged-in user session
-    return redirect("/")  # Redirects to the index/login page
+    session.clear()
+    return redirect("/")
 
 
 @app.route("/import", methods=["GET", "POST"])
@@ -188,11 +207,9 @@ def import_csv():
     if not file or not file.filename.endswith(".csv"):
         return render_template("import.html", error="Please select a valid CSV file.")
 
-    # Read and parse CSV content
     stream = io.StringIO(file.stream.read().decode("UTF-8"), newline=None)
     lines = stream.readlines()
 
-    # Skip Letterboxd metadata header lines until we reach table headers
     start_index = 0
     for idx, line in enumerate(lines):
         if line.startswith("Position,Name") or line.startswith("Date,Name"):
@@ -210,7 +227,6 @@ def import_csv():
     if not imported_films:
         return render_template("import.html", error="No valid films found in CSV.")
 
-    # Store batch in user session for step-by-step review
     session["import_queue"] = imported_films
     session["import_media_type"] = media_type
     session["import_index"] = 0
@@ -227,7 +243,6 @@ def import_review():
     idx = session.get("import_index", 0)
 
     if idx >= len(queue):
-        # Done reviewing all movies
         session.pop("import_queue", None)
         session.pop("import_media_type", None)
         session.pop("import_index", None)
@@ -264,7 +279,6 @@ def import_save():
     conn.commit()
     conn.close()
 
-    # Move to next film
     session["import_index"] = session.get("import_index", 0) + 1
     return redirect("/import/review")
 
@@ -275,9 +289,7 @@ def delete_film(film_id):
         return redirect("/")
 
     conn = get_db_connection()
-    # Delete lent records first to prevent foreign key errors
     conn.execute("DELETE FROM lent_films WHERE film_id = ?", (film_id,))
-    # Delete the film only if it belongs to the logged-in user
     conn.execute(
         "DELETE FROM films WHERE id = ? AND user_id = ?", (film_id, session["user_id"])
     )
@@ -285,6 +297,30 @@ def delete_film(film_id):
     conn.close()
 
     return redirect("/collection")
+
+
+@app.route("/create_profile", methods=["POST"])
+def create_profile():
+    username = request.form.get("username", "").strip()
+    pin = request.form.get("pin", "").strip()
+
+    if not username or not pin or len(pin) != 4:
+        return redirect("/?error=invalid_profile")
+
+    conn = get_db_connection()
+
+    existing = conn.execute(
+        "SELECT id FROM users WHERE username = ?", (username,)
+    ).fetchone()
+    if existing:
+        conn.close()
+        return redirect("/?error=username_taken")
+
+    conn.execute("INSERT INTO users (username, pin) VALUES (?, ?)", (username, pin))
+    conn.commit()
+    conn.close()
+
+    return redirect("/")
 
 
 if __name__ == "__main__":
