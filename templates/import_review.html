@@ -1,62 +1,165 @@
 {% extends 'layout.html' %} {% block content %}
-<h1>Review Imported Movies ({{ current_index + 1 }} of {{ total }})</h1>
-
-<form action="/import/save" method="POST" class="box">
-  <input type="hidden" name="current_index" value="{{ current_index }}" />
-
-  <div class="input__wrapper">
-    <label>Movie Title:</label>
-    <input
-      type="text"
-      name="title"
-      value="{{ film.title }}"
-      class="input__field"
-      required
-    />
+<header class="main-header">
+  <div class="header-brand">
+    <h1>Review Imported Movies</h1>
   </div>
-  <br />
+  <a href="/collection" class="logout-btn">← Cancel Import</a>
+</header>
 
-  <div class="input__wrapper">
-    <label>Format:</label>
-    <select name="format" class="input__field" required>
-      {% if media_type == 'Physical' %}
-      <option value="4K UHD">4K UHD</option>
-      <option value="Blu-ray">Blu-ray</option>
-      <option value="DVD">DVD</option>
-      {% else %}
-      <option value="Apple TV">Apple TV</option>
-      <option value="Prime Video">Prime Video</option>
-      <option value="YouTube">YouTube</option>
-      {% endif %}
-    </select>
+<main class="page-container">
+  <h2 style="margin-bottom: 1rem">
+    Movie {{ current_index + 1 }} of {{ total }}
+  </h2>
+
+  <div class="card">
+    <form
+      action="/import/save"
+      method="POST"
+      style="
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: flex-end;
+        background: transparent;
+        border: none;
+        padding: 0;
+        margin: 0;
+      "
+    >
+      <input type="hidden" name="current_index" value="{{ current_index }}" />
+
+      <div
+        style="
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          flex: 1.5;
+          min-width: 160px;
+        "
+      >
+        <label style="color: #a3a3a3; font-size: 0.85rem; font-weight: 500"
+          >Movie Title</label
+        >
+        <input
+          type="text"
+          name="title"
+          value="{{ film.title }}"
+          class="input__field"
+          style="
+            height: 40px;
+            min-height: 40px;
+            max-height: 40px;
+            box-sizing: border-box;
+          "
+          required
+        />
+      </div>
+
+      <div
+        style="
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          flex: 1;
+          min-width: 120px;
+        "
+      >
+        <label style="color: #a3a3a3; font-size: 0.85rem; font-weight: 500"
+          >Format</label
+        >
+        <select
+          name="format"
+          class="input__field"
+          style="
+            height: 40px;
+            min-height: 40px;
+            max-height: 40px;
+            box-sizing: border-box;
+          "
+          required
+        >
+          {% if media_type == 'Physical' %} {% for fmt in ['4K UHD', 'Blu-ray',
+          'DVD'] %} {% if film.format == fmt %}
+          <option value="{{ fmt }}" selected>{{ fmt }}</option>
+          {% else %}
+          <option value="{{ fmt }}">{{ fmt }}</option>
+          {% endif %} {% endfor %} {% else %} {% for fmt in ['Apple TV', 'Prime
+          Video', 'YouTube'] %} {% if film.format == fmt %}
+          <option value="{{ fmt }}" selected>{{ fmt }}</option>
+          {% else %}
+          <option value="{{ fmt }}">{{ fmt }}</option>
+          {% endif %} {% endfor %} {% endif %}
+        </select>
+      </div>
+
+      <div
+        style="
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          flex: 1.2;
+          min-width: 140px;
+        "
+      >
+        <label style="color: #a3a3a3; font-size: 0.85rem; font-weight: 500"
+          >Collection Name</label
+        >
+        <input
+          type="text"
+          name="collection_name"
+          placeholder="e.g. X-Men"
+          class="input__field"
+          style="
+            height: 40px;
+            min-height: 40px;
+            max-height: 40px;
+            box-sizing: border-box;
+          "
+        />
+      </div>
+
+      <div
+        style="
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          flex: 1.2;
+          min-width: 140px;
+        "
+      >
+        <label style="color: #a3a3a3; font-size: 0.85rem; font-weight: 500"
+          >Notes</label
+        >
+        <input
+          type="text"
+          name="notes"
+          value="{{ film.notes or '' }}"
+          class="input__field"
+          style="
+            height: 40px;
+            min-height: 40px;
+            max-height: 40px;
+            box-sizing: border-box;
+          "
+        />
+      </div>
+
+      <button
+        type="submit"
+        class="btn-primary"
+        style="
+          white-space: nowrap;
+          height: 40px;
+          min-height: 40px;
+          max-height: 40px;
+          padding: 0 1.25rem;
+        "
+      >
+        {% if current_index + 1 == total %} Save & Finish Import {% else %} Save
+        & Next Movie → {% endif %}
+      </button>
+    </form>
   </div>
-  <br />
-
-  <div class="input__wrapper">
-    <label>Collection Name (Optional):</label>
-    <input
-      type="text"
-      name="collection_name"
-      placeholder="e.g. X-Men: The Cerebro collection"
-      class="input__field"
-    />
-  </div>
-  <br />
-
-  <div class="input__wrapper">
-    <label>Notes (Optional):</label>
-    <input
-      type="text"
-      name="notes"
-      value="{{ film.notes }}"
-      class="input__field"
-    />
-  </div>
-  <br />
-
-  <button type="submit">
-    {% if current_index + 1 == total %} Save & Finish Import {% else %} Save &
-    Next Movie → {% endif %}
-  </button>
-</form>
+</main>
 {% endblock %}

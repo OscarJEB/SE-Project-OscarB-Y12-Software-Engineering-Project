@@ -65,17 +65,32 @@ def collection():
     if "user_id" not in session:
         return redirect("/")
 
+    search_query = request.args.get("q", "").strip()
+
     conn = get_db_connection()
 
-    # 1. Get films belonging STRICTLY to the logged-in user
-    films_raw = conn.execute(
-        "SELECT * FROM films WHERE user_id = ?", (session["user_id"],)
-    ).fetchall()
+    if search_query:
+        # Search title, format, collection_name, or notes using SQL LIKE
+        query_str = "%" + search_query + "%"
+        films_raw = conn.execute(
+            """
+            SELECT * FROM films 
+            WHERE user_id = ? AND (
+                title LIKE ? OR 
+                format LIKE ? OR 
+                collection_name LIKE ? OR 
+                notes LIKE ?
+            )
+            """,
+            (session["user_id"], query_str, query_str, query_str, query_str),
+        ).fetchall()
+    else:
+        films_raw = conn.execute(
+            "SELECT * FROM films WHERE user_id = ?", (session["user_id"],)
+        ).fetchall()
 
-    # Convert SQL rows to dictionaries to easily attach borrower info
     films = [dict(film) for film in films_raw]
 
-    # 2. Attach borrower details if the film is lent out
     for film in films:
         if film["is_lent"]:
             lent_info = conn.execute(
@@ -89,7 +104,10 @@ def collection():
 
     conn.close()
     return render_template(
-        "collection.html", films=films, username=session.get("username")
+        "collection.html",
+        films=films,
+        username=session.get("username"),
+        search_query=search_query,
     )
 
 
@@ -144,10 +162,21 @@ def lend_film(film_id):
     if "user_id" not in session:
         return redirect("/")
 
+    conn = get_db_connection()
+
+    # Check if the movie is digital
+    film = conn.execute(
+        "SELECT media_type FROM films WHERE id = ? AND user_id = ?",
+        (film_id, session["user_id"]),
+    ).fetchone()
+
+    if film and film["media_type"] == "Digital":
+        conn.close()
+        return redirect("/collection?error=digital_cannot_be_lent")
+
     borrower_name = request.form["borrower_name"]
     date_lent = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    conn = get_db_connection()
     conn.execute(
         """
         INSERT INTO lent_films (film_id, borrower_name, date_lent, is_borrowed)
@@ -156,7 +185,6 @@ def lend_film(film_id):
         (film_id, borrower_name, date_lent),
     )
 
-    # Update film status for logged-in user
     conn.execute(
         "UPDATE films SET is_lent = 1 WHERE id = ? AND user_id = ?",
         (film_id, session["user_id"]),
@@ -201,7 +229,7 @@ def import_csv():
     if request.method == "GET":
         return render_template("import.html")
 
-    file = request.files.get("csv_file")
+    file = request.files.get("file")
     media_type = request.form.get("media_type", "Physical")
 
     if not file or not file.filename.endswith(".csv"):
@@ -210,19 +238,36 @@ def import_csv():
     stream = io.StringIO(file.stream.read().decode("UTF-8"), newline=None)
     lines = stream.readlines()
 
+    # Locate the true CSV header and skip list titles/metadata above it
     start_index = 0
     for idx, line in enumerate(lines):
-        if line.startswith("Position,Name") or line.startswith("Date,Name"):
-            start_index = idx
+        if (
+            line.startswith("Position,Name")
+            or line.startswith("Date,Name")
+            or line.startswith("Title,")
+        ):
+            start_index = idx + 1  # Skip the header row itself
             break
 
-    reader = csv.DictReader(lines[start_index:])
+    reader = csv.DictReader(
+        lines[start_index:],
+        fieldnames=["Position", "Name", "Year", "URL", "Description"],
+    )
     imported_films = []
 
     for row in reader:
         name = row.get("Name") or row.get("Title")
-        if name:
-            imported_films.append({"title": name, "notes": row.get("Description", "")})
+        if name and name.strip() != "Name":
+            imported_films.append(
+                {
+                    "title": name.strip(),
+                    "notes": (
+                        row.get("Description", "").strip()
+                        if row.get("Description")
+                        else ""
+                    ),
+                }
+            )
 
     if not imported_films:
         return render_template("import.html", error="No valid films found in CSV.")
@@ -321,6 +366,112 @@ def create_profile():
     conn.close()
 
     return redirect("/")
+
+
+# ---------------------------------------------------------
+# FRIEND SYSTEM & VIEWING FRIEND COLLECTIONS
+# ---------------------------------------------------------
+@app.route("/friends", methods=["GET", "POST"])
+def friends():
+    if "user_id" not in session:
+        return redirect("/")
+
+    conn = get_db_connection()
+
+    if request.method == "POST":
+        friend_username = request.form.get("username", "").strip()
+        friend = conn.execute(
+            "SELECT id FROM users WHERE username = ?", (friend_username,)
+        ).fetchone()
+
+        if friend and friend["id"] != session["user_id"]:
+            existing = conn.execute(
+                "SELECT id FROM friends WHERE user_id = ? AND friend_id = ?",
+                (session["user_id"], friend["id"]),
+            ).fetchone()
+            if not existing:
+                conn.execute(
+                    "INSERT INTO friends (user_id, friend_id) VALUES (?, ?)",
+                    (session["user_id"], friend["id"]),
+                )
+                conn.commit()
+
+    friends_list = conn.execute(
+        """
+        SELECT u.id, u.username FROM users u
+        JOIN friends f ON u.id = f.friend_id
+        WHERE f.user_id = ?
+    """,
+        (session["user_id"],),
+    ).fetchall()
+
+    conn.close()
+    return render_template("friends.html", friends=friends_list)
+
+
+@app.route("/friends/<int:friend_id>")
+def view_friend_collection(friend_id):
+    if "user_id" not in session:
+        return redirect("/")
+
+    conn = get_db_connection()
+    friend = conn.execute(
+        "SELECT username FROM users WHERE id = ?", (friend_id,)
+    ).fetchone()
+    films = conn.execute(
+        "SELECT * FROM films WHERE user_id = ?", (friend_id,)
+    ).fetchall()
+    conn.close()
+
+    return render_template("friend_collection.html", friend=friend, films=films)
+
+
+# ---------------------------------------------------------
+# WATCHLIST WITH BORROWABLE TAGS
+# ---------------------------------------------------------
+@app.route("/watchlist", methods=["GET", "POST"])
+def watchlist():
+    if "user_id" not in session:
+        return redirect("/")
+
+    conn = get_db_connection()
+
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        if title:
+            conn.execute(
+                "INSERT INTO watchlist (user_id, title) VALUES (?, ?)",
+                (session["user_id"], title),
+            )
+            conn.commit()
+
+    watchlist_items = conn.execute(
+        "SELECT * FROM watchlist WHERE user_id = ?", (session["user_id"],)
+    ).fetchall()
+
+    enhanced_watchlist = []
+    for item in watchlist_items:
+        friend_owner = conn.execute(
+            """
+            SELECT u.username, f.format FROM films f
+            JOIN users u ON f.user_id = u.id
+            JOIN friends fr ON fr.friend_id = u.id
+            WHERE fr.user_id = ? AND LOWER(f.title) = LOWER(?) AND f.media_type = 'Physical' AND f.is_lent = 0
+        """,
+            (session["user_id"], item["title"]),
+        ).fetchone()
+
+        enhanced_watchlist.append(
+            {
+                "id": item["id"],
+                "title": item["title"],
+                "borrowable_from": friend_owner["username"] if friend_owner else None,
+                "format": friend_owner["format"] if friend_owner else None,
+            }
+        )
+
+    conn.close()
+    return render_template("watchlist.html", watchlist=enhanced_watchlist)
 
 
 if __name__ == "__main__":

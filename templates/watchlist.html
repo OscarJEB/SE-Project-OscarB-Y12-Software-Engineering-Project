@@ -1,0 +1,74 @@
+{% extends 'layout.html' %} {% block content %}
+<header class="main-header">
+  <h1>My Watchlist</h1>
+  <a href="/collection" class="logout-btn">← Back to Collection</a>
+</header>
+
+<main class="page-container" style="max-width: 700px; margin: 0 auto">
+  <div class="card" style="margin-bottom: 2rem">
+    <h2>Add to Watchlist</h2>
+    <form
+      action="/watchlist"
+      method="POST"
+      style="display: flex; gap: 0.5rem; margin-top: 1rem"
+    >
+      <input
+        type="text"
+        name="title"
+        placeholder="Film Title"
+        class="input__field"
+        style="height: 40px"
+        required
+      />
+      <button type="submit" class="btn-primary" style="height: 40px">
+        Add Film
+      </button>
+    </form>
+  </div>
+
+  <h2>Wanted Movies</h2>
+  <div
+    style="
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    "
+  >
+    {% for item in watchlist %}
+    <div
+      class="card"
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+      "
+    >
+      <span style="font-weight: 600; font-size: 1.05rem">{{ item.title }}</span>
+
+      {% if item.borrowable_from %}
+      <span
+        style="
+          background: #15803d;
+          color: #f0fdf4;
+          padding: 0.3rem 0.6rem;
+          border-radius: 6px;
+          font-size: 0.85rem;
+          font-weight: 500;
+        "
+      >
+        Borrowable from {{ item.borrowable_from }} ({{ item.format }})
+      </span>
+      {% else %}
+      <span style="color: #737373; font-size: 0.85rem"
+        >Not in friends' collections</span
+      >
+      {% endif %}
+    </div>
+    {% else %}
+    <p style="color: #a3a3a3">Your watchlist is empty.</p>
+    {% endfor %}
+  </div>
+</main>
+{% endblock %}

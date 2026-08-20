@@ -3,120 +3,152 @@
   <head>
     <meta charset="UTF-8" />
     <title>Media Tracker - Collection</title>
-    <!-- Link to your CSS file -->
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
     />
   </head>
   <body>
-    <header>
-      <h1>Film Collection</h1>
-      <a href="/logout">← Switch Profile / Back to Login</a>
+    <header class="main-header">
+      <div class="header-brand">
+        <img
+          src="{{ url_for('static', filename='images/logo.png') }}"
+          alt="Media Tracker Logo"
+          class="header-logo"
+        />
+        <h1>{% if username %}{{ username }}'s {% endif %}Film Collection</h1>
+      </div>
+      <a href="/logout" class="logout-btn">← Switch Profile</a>
     </header>
 
-    <a href="/import" class="button-btn"
-      >+ Import list of films from Letterboxd</a
-    >
+    <main class="page-container">
+      <!-- Import Banner -->
+      <div class="top-actions">
+        <a href="/import" class="btn-secondary">
+          + Import list of films from Letterboxd
+          <br /><br />
+        </a>
+      </div>
 
-    <br /><br />
+      <!-- Add Film Form -->
+      <div class="card card-wide">
+        <h2>Add New Title</h2>
+        <form action="/add_film" method="POST" class="add-film-form">
+          <input
+            type="text"
+            name="title"
+            placeholder="Film Title"
+            required
+            class="input__field"
+          />
 
-    <!-- Add Film Form -->
-    <form action="/add_film" method="POST">
-      <h2>Add New Title</h2>
-      <input type="text" name="title" placeholder="Film Title" required />
+          <select name="format" required class="input__field">
+            <option value="" disabled selected>Select Format...</option>
+            <optgroup label="Physical">
+              <option value="4K Ultra HD">4K Ultra HD</option>
+              <option value="Blu-ray">Blu-ray</option>
+              <option value="DVD">DVD</option>
+            </optgroup>
+            <optgroup label="Digital">
+              <option value="Apple TV">Apple TV</option>
+              <option value="Prime Video">Prime Video</option>
+              <option value="YouTube">YouTube</option>
+              <option value="Google Play">Google Play</option>
+            </optgroup>
+          </select>
 
-      <select name="format" required>
-        <option value="" disabled selected>Select Format...</option>
-        <optgroup label="Physical">
-          <option value="4K Ultra HD">4K Ultra HD</option>
-          <option value="Blu-ray">Blu-ray</option>
-          <option value="DVD">DVD</option>
-        </optgroup>
-        <optgroup label="Digital">
-          <option value="Apple TV">Apple TV</option>
-          <option value="Prime Video">Prime Video</option>
-          <option value="YouTube">YouTube</option>
-          <option value="Google Play">Google Play</option>
-        </optgroup>
-      </select>
+          <input
+            type="text"
+            name="collection_name"
+            placeholder="Boxset Name (Optional)"
+            class="input__field"
+          />
+          <input
+            type="text"
+            name="edition_notes"
+            placeholder="Notes e.g. Extended Cut (Optional)"
+            class="input__field"
+          />
 
-      <input
-        type="text"
-        name="collection_name"
-        placeholder="Boxset Name (Optional)"
-      />
-      <input
-        type="text"
-        name="edition_notes"
-        placeholder="Notes e.g. Extended Cut (Optional)"
-      />
+          <button type="submit" class="btn-primary">Add Movie</button>
+        </form>
+      </div>
 
-      <button type="submit">Add Movie</button>
-    </form>
+      <!-- Search Bar Input -->
+      <div class="search-container">
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="🔍 Search titles, formats, or notes..."
+          onkeyup="filterFilms()"
+          class="input__field search-input"
+        />
+      </div>
 
-    <!-- Clean Collection List -->
-    <ul>
-      {% for film in films %}
-      <li class="film-item">
-        <div class="film-info">
-          <span class="film-title">{{ film.title }}</span>
-          <span class="film-format">{{ film.format }}</span>
+      <!-- Clean Collection List -->
+      <ul id="filmList" class="film-list">
+        {% for film in films %}
+        <li class="film-item">
+          <div class="film-info">
+            <span class="film-title">{{ film.title }}</span>
+            <span class="film-format">{{ film.format }}</span>
 
-          {% if film.collection_name %}
-          <span class="film-notes">— {{ film.collection_name }}</span>
-          {% endif %} {% if film.notes %}
-          <span class="film-notes">[{{ film.notes }}]</span>
-          {% endif %}
-        </div>
+            {% if film.collection_name %}
+            <span class="film-notes">— {{ film.collection_name }}</span>
+            {% endif %} {% if film.notes %}
+            <span class="film-notes">[{{ film.notes }}]</span>
+            {% endif %}
+          </div>
 
-        <div class="actions">
-          {% if film.is_lent %}
-          <span style="color: #34d399; font-size: 0.85rem">
-            Borrowed by <strong>{{ film.borrower_name }}</strong> ({{
-            film.date_lent }})
-          </span>
+          <div class="actions">
+            {% if film.is_lent %}
+            <span class="borrowed-tag">
+              Borrowed by <strong>{{ film.borrower_name }}</strong> ({{
+              film.date_lent }})
+            </span>
 
-          <form
-            action="/return_film/{{ film.id }}"
-            method="POST"
-            style="
-              display: inline;
-              margin: 0;
-              padding: 0;
-              background: none;
-              border: none;
-            "
-          >
-            <button
-              type="submit"
-              style="
-                background: #10b981;
-                padding: 0.3rem 0.6rem;
-                font-size: 0.8rem;
-              "
+            <form
+              action="/return_film/{{ film.id }}"
+              method="POST"
+              class="inline-form"
             >
-              Returned
-            </button>
-          </form>
-          {% else %}
-          <!-- Hovering Lend Link -->
-          <a href="/lend/{{ film.id }}" class="lend-btn">[Lend Out]</a>
-          {% endif %}
+              <button type="submit" class="btn-return">Returned</button>
+            </form>
+            {% else %}
+            <a href="/lend/{{ film.id }}" class="lend-btn">[Lend Out]</a>
+            {% endif %}
 
-          <!-- Hovering Delete Button -->
-          <a
-            href="/delete_film/{{ film.id }}"
-            class="delete-btn"
-            onclick="return confirm('Are you sure you want to delete {{ film.title }}?');"
-          >
-            🗑
-          </a>
-        </div>
-      </li>
-      {% else %}
-      <li>No films in collection yet!</li>
-      {% endfor %}
-    </ul>
+            <a
+              href="/delete_film/{{ film.id }}"
+              class="delete-btn"
+              onclick="return confirm('Are you sure you want to delete {{ film.title }}?');"
+            >
+              🗑
+            </a>
+          </div>
+        </li>
+        {% else %}
+        <li class="empty-state">No films in collection yet!</li>
+        {% endfor %}
+      </ul>
+    </main>
+
+    <!-- Instant Filter Script -->
+    <script>
+      function filterFilms() {
+        const input = document.getElementById("searchInput");
+        const filter = input.value.toLowerCase();
+        const items = document.querySelectorAll(".film-item");
+
+        items.forEach((item) => {
+          const text = item.textContent || item.innerText;
+          if (text.toLowerCase().includes(filter)) {
+            item.style.display = "flex";
+          } else {
+            item.style.display = "none";
+          }
+        });
+      }
+    </script>
   </body>
 </html>
