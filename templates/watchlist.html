@@ -1,3 +1,4 @@
+<!-- watchlist template -->
 {% extends 'layout.html' %} {% block content %}
 <header class="main-header">
   <h1>My Watchlist</h1>
@@ -5,6 +6,7 @@
 </header>
 
 <main class="page-container" style="max-width: 700px; margin: 0 auto">
+  <!-- form to add new films to watchlist -->
   <div class="card" style="margin-bottom: 2rem">
     <h2>Add to Watchlist</h2>
     <form
@@ -26,6 +28,7 @@
     </form>
   </div>
 
+  <!-- list of wanted movies -->
   <h2>Wanted Movies</h2>
   <div
     style="
@@ -35,6 +38,7 @@
       margin-top: 1rem;
     "
   >
+    <!-- loops through user watchlist items -->
     {% for item in watchlist %}
     <div
       class="card"
@@ -47,6 +51,7 @@
     >
       <span style="font-weight: 600; font-size: 1.05rem">{{ item.title }}</span>
 
+      <!-- shows if a friend has a physical copy you can borrow -->
       {% if item.borrowable_from %}
       <span
         style="
@@ -60,12 +65,14 @@
       >
         Borrowable from {{ item.borrowable_from }} ({{ item.format }})
       </span>
+      <!-- fallback if no friends own it -->
       {% else %}
       <span style="color: #737373; font-size: 0.85rem"
         >Not in friends' collections</span
       >
       {% endif %}
     </div>
+    <!-- empty state when watchlist has no movies -->
     {% else %}
     <p style="color: #a3a3a3">Your watchlist is empty.</p>
     {% endfor %}

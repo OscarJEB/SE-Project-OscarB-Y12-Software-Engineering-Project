@@ -1,3 +1,4 @@
+<!-- main collection page for media tracker -->
 <!doctype html>
 <html lang="en">
   <head>
@@ -9,6 +10,7 @@
     />
   </head>
   <body>
+    <!-- site header with logo and navigation links -->
     <header class="main-header">
       <div class="header-brand">
         <img
@@ -27,14 +29,14 @@
 </header>
 
     <main class="page-container">
-      <!-- Import Banner -->
+      <!-- import banner for Letterboxd csv files -->
       <div class="top-actions">
         <a href="/import" class="btn-secondary">
           + Import list of films from Letterboxd
         </a>
       </div>
 
-      <!-- Add Film Form -->
+      <!-- form to add new physical or digital titles -->
       <div class="card card-wide">
         <h2>Add New Title</h2>
         <form action="/add_film" method="POST" class="add-film-form">
@@ -78,7 +80,7 @@
         </form>
       </div>
 
-      <!-- Search Bar Input -->
+      <!-- search bar input to filter titles in real time -->
       <div class="search-container">
         <input
           type="text"
@@ -89,7 +91,7 @@
         />
       </div>
 
-      <!-- Clean Collection List -->
+      <!-- loops through and displays user films -->
       <ul id="filmList" class="film-list">
         {% for film in films %}
         <li class="film-item">
@@ -105,6 +107,7 @@
           </div>
 
           <div class="actions">
+            <!-- shows borrower name and return button if film is lent out -->
             {% if film.is_lent %}
             <span class="borrowed-tag">
             Borrowed by {{ film.borrower_name }}{% if film.date_lent %} ({{ film.date_lent }}){% endif %}
@@ -116,6 +119,7 @@
             >
               <button type="submit" class="btn-return">Returned</button>
             </form>
+            <!-- shows lend button if film is currently available -->
             {% else %}
             <a href="/lend/{{ film.id }}" class="lend-btn">[Lend Out]</a>
             {% endif %}
@@ -130,14 +134,16 @@
             </a>
           </div>
         </li>
+        <!-- shows empty state message if user has no movies -->
         {% else %}
         <li class="empty-state">No films in collection yet!</li>
         {% endfor %}
       </ul>
     </main>
 
-    <!-- Instant Filter Script -->
+    <!-- instant filter script -->
     <script>
+      // filters film list on keyup based on title, format, or notes
       function filterFilms() {
         const input = document.getElementById("searchInput");
         const filter = input.value.toLowerCase();

@@ -1,8 +1,10 @@
+<!-- view friend's media collection template -->
 {% extends 'layout.html' %} {% block content %}
 <header class="main-header">
   <h1>{{ friend.username }}'s Collection</h1>
   <a href="/friends" class="logout-btn">← Back to Friends</a>
 </header>
+<!-- main container for viewing selected friend's library -->
 <main class="page-container" style="max-width: 800px; margin: 2rem auto">
   <div
     style="
@@ -16,7 +18,9 @@
     <a href="/friends" class="btn-secondary">← Back to Friends</a>
   </div>
 
+  <!-- list displaying friend's collection entries -->
   <div style="display: flex; flex-direction: column; gap: 0.75rem">
+    <!-- loops through films belonging to this friend -->
     {% for film in films %}
     <div
       class="card"
@@ -32,11 +36,13 @@
           >{{ film.title }}</strong
         >
         <span class="film-format">{{ film.format }}</span>
+        <!-- tag indicating if the physical copy is unavailable -->
         {% if film.is_lent %}
         <span class="borrowed-tag">Currently Lent Out</span>
         {% endif %}
       </div>
     </div>
+    <!-- fallback when friend has no movies listed -->
     {% else %}
     <p style="color: #a3a3a3">This user has no films in their collection.</p>
     {% endfor %}

@@ -13,15 +13,18 @@ CORS(app)
 app.secret_key = "media_tracker"
 
 
+# connects to sqlite db and lets us grab columns by name
 def get_db_connection():
     conn = sqlite3.connect("database_files/database.db")
-    conn.row_factory = sqlite3.Row  # Access columns by name in Jinja templates
+    conn.row_factory = sqlite3.Row  # access columns by name in jinja templates
     return conn
 
 
+# landing page / profile chooser
 @app.route("/index.html", methods=["POST", "GET", "PUT", "PATCH", "DELETE"])
 @app.route("/")
 def home():
+    # redirect straight to collection if already logged in
     if "user_id" in session:
         return redirect("/collection")
 
@@ -33,6 +36,7 @@ def home():
     return render_template("index.html", users=users, error=error)
 
 
+# logs user in with 4-digit pin
 @app.route("/login", methods=["POST"])
 def login():
     user_id = request.form.get("user_id")
@@ -47,6 +51,7 @@ def login():
 
     if user:
         user_dict = dict(user)
+        # check pin or fallback to password column
         user_pin = user_dict.get("pin") or user_dict.get("password")
 
         if user_pin and str(user_pin).strip() == pin:
@@ -57,6 +62,7 @@ def login():
     return redirect("/?error=invalid_pin")
 
 
+# displays user collection and handles search
 @app.route("/collection")
 def collection():
     if "user_id" not in session:
@@ -65,6 +71,7 @@ def collection():
     search_query = request.args.get("q", "").strip()
     conn = get_db_connection()
 
+    # filter films if user typed something in search
     if search_query:
         query_str = "%" + search_query + "%"
         films_raw = conn.execute(
@@ -81,6 +88,7 @@ def collection():
             (session["user_id"], query_str, query_str, query_str, query_str),
         ).fetchall()
     else:
+        # grab all films owned by logged in user
         films_raw = conn.execute(
             """
             SELECT f.*, f.lent_to_name AS borrower_name 
@@ -103,6 +111,7 @@ def collection():
     )
 
 
+# adds a single film manually
 @app.route("/add_film", methods=["POST"])
 def add_film():
     if "user_id" not in session:
@@ -113,6 +122,7 @@ def add_film():
     collection_name = request.form.get("collection_name", "")
     notes = request.form.get("edition_notes", "")
 
+    # automatically tag as digital or physical based on format
     digital_formats = ["Apple TV", "Prime Video", "YouTube", "Google Play"]
     media_type = "Digital" if format_type in digital_formats else "Physical"
 
@@ -129,6 +139,7 @@ def add_film():
     return redirect("/collection")
 
 
+# rearranges the date to day, month, year
 @app.template_filter("format_date")
 def format_date(value):
     if not value:
@@ -142,6 +153,7 @@ def format_date(value):
     return value
 
 
+# shows page to lend a film
 @app.route("/lend/<int:film_id>")
 def lend_page(film_id):
     if "user_id" not in session:
@@ -160,6 +172,7 @@ def lend_page(film_id):
     return render_template("lend.html", film=film)
 
 
+# process lending out a film
 @app.route("/lend_film/<int:film_id>", methods=["POST"])
 def lend_film(film_id):
     if "user_id" not in session:
@@ -172,6 +185,7 @@ def lend_film(film_id):
         (film_id, session["user_id"]),
     ).fetchone()
 
+    # block digital copies from being lent
     if film and film["media_type"] == "Digital":
         conn.close()
         return redirect("/collection?error=digital_cannot_be_lent")
@@ -195,6 +209,7 @@ def lend_film(film_id):
     return redirect("/collection")
 
 
+# marks a lent film as returned
 @app.route("/return_film/<int:film_id>", methods=["POST"])
 def return_film(film_id):
     if "user_id" not in session:
@@ -215,12 +230,14 @@ def return_film(film_id):
     return redirect("/collection")
 
 
+# logs user out
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/")
 
 
+# handles uploaded csv files
 @app.route("/import", methods=["GET", "POST"])
 def import_csv():
     if "user_id" not in session:
@@ -235,6 +252,7 @@ def import_csv():
     if not file or not file.filename.endswith(".csv"):
         return render_template("import.html", error="Please select a valid CSV file.")
 
+    # decode with utf-8-sig to automatically strip byte-order marks (\ufeff)
     raw_content = file.stream.read().decode("utf-8-sig")
     lines = [line for line in raw_content.splitlines() if line.strip()]
 
@@ -243,10 +261,12 @@ def import_csv():
             "import.html", error="CSV file is missing data or formatted incorrectly."
         )
 
+    # skip header line and parse rows
     reader = csv.DictReader(lines[1:])
     imported_films = []
 
     for row in reader:
+        # handle different possible column names
         name = row.get("Name") or row.get("Title") or row.get("Film")
         notes = row.get("Description") or row.get("Notes") or ""
 
@@ -256,6 +276,7 @@ def import_csv():
     if not imported_films:
         return render_template("import.html", error="No valid films found in CSV.")
 
+    # stash import list in session for review loop
     session["import_queue"] = imported_films
     session["import_media_type"] = media_type
     session["import_index"] = 0
@@ -263,6 +284,7 @@ def import_csv():
     return redirect("/import/review")
 
 
+# steps through imported movies one by one
 @app.route("/import/review")
 def import_review():
     if "user_id" not in session or "import_queue" not in session:
@@ -271,6 +293,7 @@ def import_review():
     queue = session["import_queue"]
     idx = session.get("import_index", 0)
 
+    # clean up session when done reviewing
     if idx >= len(queue):
         session.pop("import_queue", None)
         session.pop("import_media_type", None)
@@ -286,6 +309,7 @@ def import_review():
     )
 
 
+# saves current reviewed film from csv queue
 @app.route("/import/save", methods=["POST"])
 def import_save():
     if "user_id" not in session or "import_queue" not in session:
@@ -308,10 +332,12 @@ def import_save():
     conn.commit()
     conn.close()
 
+    # increment queue index
     session["import_index"] = session.get("import_index", 0) + 1
     return redirect("/import/review")
 
 
+# permanently removes film
 @app.route("/delete_film/<int:film_id>")
 def delete_film(film_id):
     if "user_id" not in session:
@@ -327,6 +353,7 @@ def delete_film(film_id):
     return redirect("/collection")
 
 
+# creates a new user profile
 @app.route("/create_profile", methods=["POST"])
 def create_profile():
     username = request.form.get("username", "").strip()
@@ -337,6 +364,7 @@ def create_profile():
 
     conn = get_db_connection()
 
+    # check if username already exists
     existing = conn.execute(
         "SELECT id FROM users WHERE username = ?", (username,)
     ).fetchone()
@@ -351,6 +379,7 @@ def create_profile():
     return redirect("/")
 
 
+# manages adding friends and viewing friends list
 @app.route("/friends", methods=["GET", "POST"])
 def friends():
     if "user_id" not in session:
@@ -389,6 +418,7 @@ def friends():
     return render_template("friends.html", friends=friends_list)
 
 
+# view a friend's collection
 @app.route("/friends/<int:friend_id>")
 def view_friend_collection(friend_id):
     if "user_id" not in session:
@@ -406,6 +436,7 @@ def view_friend_collection(friend_id):
     return render_template("friend_collection.html", friend=friend, films=films)
 
 
+# watchlist with friend media availability checks
 @app.route("/watchlist", methods=["GET", "POST"])
 def watchlist():
     if "user_id" not in session:
@@ -428,6 +459,7 @@ def watchlist():
 
     enhanced_watchlist = []
     for item in watchlist_items:
+        # check if any friend owns an available physical copy
         friend_owner = conn.execute(
             """
             SELECT u.username, f.format FROM films f
@@ -451,6 +483,7 @@ def watchlist():
     return render_template("watchlist.html", watchlist=enhanced_watchlist)
 
 
+# edit existing film details
 @app.route("/edit_film/<int:film_id>", methods=["GET", "POST"])
 def edit_film(film_id):
     if "user_id" not in session:
@@ -468,6 +501,7 @@ def edit_film(film_id):
         digital_formats = ["Apple TV", "Prime Video", "YouTube", "Google Play"]
         media_type = "Digital" if format_type in digital_formats else "Physical"
 
+        # toggle lending flags depending on whether borrower name exists
         is_lent = 1 if lent_to_name else 0
         date_lent = datetime.now().strftime("%d %b %Y") if lent_to_name else None
 

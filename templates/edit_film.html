@@ -1,3 +1,4 @@
+<!-- edit film details form -->
 {% extends 'layout.html' %} {% block content %}
 <header class="main-header">
   <h1>Edit Film</h1>
@@ -25,6 +26,7 @@
         />
       </div>
 
+      <!-- selects format and pre-selects current value -->
       <div>
         <label style="font-weight: 600; display: block; margin-bottom: 0.3rem"
           >Format</label
@@ -35,6 +37,7 @@
           style="width: 100%; box-sizing: border-box"
           required
         >
+          <!-- any type of format can be selected, physical or digital -->
           {% for fmt in ['4K UHD', 'Blu-ray', 'DVD', 'VHS', 'Apple TV', 'Prime
           Video', 'YouTube', 'Google Play'] %} {% if film.format == fmt %}
           <option value="{{ fmt }}" selected>{{ fmt }}</option>
@@ -72,6 +75,7 @@
         />
       </div>
 
+      <!-- optional borrower field to update lending status -->
       <div>
         <label style="font-weight: 600; display: block; margin-bottom: 0.3rem"
           >Lent To (Leave empty if not lent)</label

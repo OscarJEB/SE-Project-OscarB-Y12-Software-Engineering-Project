@@ -1,3 +1,4 @@
+<!-- csv file upload template -->
 {% extends 'layout.html' %} {% block content %}
 <header class="main-header">
   <div class="header-brand">
@@ -7,9 +8,11 @@
 </header>
 
 <main class="page-container">
+  <!-- upload form card -->
   <div class="card" style="max-width: 450px; margin: 0 auto">
     <h2 style="margin-bottom: 1.25rem">Upload CSV File</h2>
 
+    <!-- form to submit csv file with multipart encoding -->
     <form
       action="/import"
       method="POST"
@@ -24,6 +27,7 @@
         margin: 0;
       "
     >
+      <!-- select default media classification for import batch -->
       <div style="display: flex; flex-direction: column; gap: 0.35rem">
         <label style="color: #a3a3a3; font-size: 0.85rem; font-weight: 500"
           >Media Type</label
@@ -45,6 +49,7 @@
         </select>
       </div>
 
+      <!-- file picker input restricted to csv files -->
       <div style="display: flex; flex-direction: column; gap: 0.35rem">
         <label style="color: #a3a3a3; font-size: 0.85rem; font-weight: 500"
           >CSV File</label

@@ -1,3 +1,4 @@
+<!-- review imported movies step template -->
 {% extends 'layout.html' %} {% block content %}
 <header class="main-header">
   <div class="header-brand">
@@ -7,11 +8,13 @@
 </header>
 
 <main class="page-container">
+  <!-- displays current movie progress out of total csv records -->
   <h2 style="margin-bottom: 1rem">
     Movie {{ current_index + 1 }} of {{ total }}
   </h2>
 
   <div class="card">
+    <!-- form to review and save each imported film individually -->
     <form
       action="/import/save"
       method="POST"
@@ -27,6 +30,7 @@
         margin: 0;
       "
     >
+      <!-- tracks index position in import session -->
       <input type="hidden" name="current_index" value="{{ current_index }}" />
 
       <div
@@ -56,6 +60,7 @@
         />
       </div>
 
+      <!-- dynamically adjusts format choices based on media type -->
       <div
         style="
           display: flex;
@@ -145,6 +150,7 @@
         />
       </div>
 
+      <!-- updates submit button label on final film record -->
       <button
         type="submit"
         class="btn-primary"

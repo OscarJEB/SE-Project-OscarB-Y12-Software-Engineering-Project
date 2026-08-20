@@ -1,3 +1,4 @@
+<!-- lend film form -->
 {% extends 'layout.html' %} {% block content %}
 <header class="main-header">
   <h1>Lend Out Movie</h1>
@@ -10,6 +11,7 @@
       You are lending: <strong>{{ film.title }}</strong> ({{ film.format }})
     </p>
 
+    <!-- records borrower name to track physical loan -->
     <form action="/lend_film/{{ film.id }}" method="POST">
       <input
         type="text"

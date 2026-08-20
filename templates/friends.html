@@ -1,3 +1,4 @@
+<!-- friends page template -->
 {% extends 'layout.html' %} {% block content %}
 <header class="main-header">
   <h1>Friends</h1>
@@ -5,6 +6,7 @@
 </header>
 
 <main class="page-container" style="max-width: 600px; margin: 0 auto">
+  <!-- form to look up and add a new friend -->
   <div class="card" style="margin-bottom: 2rem">
     <h2>Add a Friend</h2>
     <form
@@ -26,6 +28,7 @@
     </form>
   </div>
 
+  <!-- list of added friends -->
   <h2>Your Friends</h2>
   <div
     style="
@@ -35,6 +38,7 @@
       margin-top: 1rem;
     "
   >
+    <!-- loops through added friends -->
     {% for friend in friends %}
     <div
       class="card"
@@ -57,6 +61,7 @@
         >View Collection →</a
       >
     </div>
+    <!-- empty state when user has no friends added -->
     {% else %}
     <p style="color: #a3a3a3">You haven't added any friends yet.</p>
     {% endfor %}
