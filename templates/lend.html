@@ -1,27 +1,27 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Lend Film - {{ film.title }}</title>
-  </head>
-  <body>
-    <h1>Lend Out Movie</h1>
-    <p>
+{% extends 'layout.html' %} {% block content %}
+<header class="main-header">
+  <h1>Lend Out Movie</h1>
+  <a href="/collection" class="logout-btn">← Back to Collection</a>
+</header>
+
+<main class="page-container" style="max-width: 600px; margin: 0 auto">
+  <div class="card">
+    <p style="margin-bottom: 1.5rem; font-size: 1.1rem">
       You are lending: <strong>{{ film.title }}</strong> ({{ film.format }})
     </p>
-    <!-- film title in bold to increase readability -->
 
     <form action="/lend_film/{{ film.id }}" method="POST">
       <input
         type="text"
         name="borrower_name"
         placeholder="Borrower's Name"
+        class="input__field"
         required
       />
-      <button type="submit">Confirm Lend</button>
+      <button type="submit" class="btn-primary" style="margin-top: 1rem">
+        Confirm Lend
+      </button>
     </form>
-
-    <br />
-    <a href="/collection">← Back to Collection</a>
-  </body>
-</html>
+  </div>
+</main>
+{% endblock %}

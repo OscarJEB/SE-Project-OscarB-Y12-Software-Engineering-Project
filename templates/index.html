@@ -1,90 +1,94 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Media Tracker - Select Profile</title>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/style.css') }}"
-    />
-  </head>
-  <body>
-    <header class="main-header">
-      <img
-        src="{{ url_for('static', filename='images/logo.png') }}"
-        alt="Media Tracker Logo"
-        class="header-logo"
-      />
-    </header>
+{% extends 'layout.html' %} {% block content %}
+<main class="page-container" style="max-width: 850px; margin: 2rem auto">
+  <div class="auth-wrapper">
+    <!-- Card 1: Select Profile -->
+    <div class="card">
+      <h2>Select Profile</h2>
 
-    <div class="auth-wrapper">
-      <!-- Card 1: Select Profile -->
-      <div class="card">
-        <h2>Select Profile</h2>
-        <!-- Error Alert -->
-        {% if error == 'invalid_pin' %}
-        <p
-          style="
-            color: #ef4444;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-          "
-        >
-          ❌ Incorrect PIN. Access denied.
-        </p>
-        {% endif %}
-        <form action="/login" method="POST" class="card-form">
-          <select name="user_id" required class="input__field">
-            <option value="" disabled selected>Who is using the app?</option>
-            {% for user in users %}
-            <option value="{{ user.id }}">{{ user.username }}</option>
-            {% endfor %}
-          </select>
+      {% if error == 'invalid_pin' %}
+      <p
+        style="
+          color: #ef4444;
+          font-weight: 600;
+          margin-bottom: 1rem;
+          font-size: 0.9rem;
+        "
+      >
+        ❌ Incorrect PIN. Access denied.
+      </p>
+      {% elif error == 'username_taken' %}
+      <p
+        style="
+          color: #ef4444;
+          font-weight: 600;
+          margin-bottom: 1rem;
+          font-size: 0.9rem;
+        "
+      >
+        ❌ Username is already taken.
+      </p>
+      {% elif error == 'invalid_profile' %}
+      <p
+        style="
+          color: #ef4444;
+          font-weight: 600;
+          margin-bottom: 1rem;
+          font-size: 0.9rem;
+        "
+      >
+        ❌ Please enter a valid profile name and 4-digit PIN.
+      </p>
+      {% endif %}
 
-          <input
-            type="password"
-            name="pin"
-            placeholder="Enter 4-Digit PIN"
-            maxlength="4"
-            pattern="[0-9]{4}"
-            inputmode="numeric"
-            required
-            class="input__field"
-          />
+      <form action="/login" method="POST" class="card-form">
+        <select name="user_id" required class="input__field">
+          <option value="" disabled selected>Who is using the app?</option>
+          {% for user in users %}
+          <option value="{{ user.id }}">{{ user.username }}</option>
+          {% endfor %}
+        </select>
 
-          <button type="submit" class="btn-primary">
-            View Your Collection
-          </button>
-        </form>
-      </div>
+        <input
+          type="password"
+          name="pin"
+          placeholder="Enter 4-Digit PIN"
+          maxlength="4"
+          pattern="[0-9]{4}"
+          inputmode="numeric"
+          required
+          class="input__field"
+        />
 
-      <!-- Card 2: Add New Profile -->
-      <div class="card">
-        <h2>+ Add New Profile</h2>
-        <form action="/create_profile" method="POST" class="card-form">
-          <input
-            type="text"
-            name="username"
-            placeholder="Profile Name"
-            required
-            class="input__field"
-          />
-
-          <input
-            type="password"
-            name="pin"
-            placeholder="Set 4-Digit PIN"
-            maxlength="4"
-            pattern="[0-9]{4}"
-            inputmode="numeric"
-            required
-            class="input__field"
-          />
-
-          <button type="submit" class="btn-primary">Create Profile</button>
-        </form>
-      </div>
+        <button type="submit" class="btn-primary">View Your Collection</button>
+      </form>
     </div>
-  </body>
-</html>
+
+    <!-- Card 2: Add New Profile -->
+    <div class="card">
+      <h2>+ Add New Profile</h2>
+      <form action="/create_profile" method="POST" class="card-form">
+        <input
+          type="text"
+          name="username"
+          placeholder="Profile Name"
+          required
+          class="input__field"
+        />
+
+        <input
+          type="password"
+          name="pin"
+          placeholder="Set 4-Digit PIN"
+          maxlength="4"
+          pattern="[0-9]{4}"
+          inputmode="numeric"
+          required
+          class="input__field"
+        />
+
+        <button type="submit" class="btn-primary">Create Profile</button>
+      </form>
+    </div>
+  </div>
+</main>
+{% endblock %}

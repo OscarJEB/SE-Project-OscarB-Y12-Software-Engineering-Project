@@ -1,3 +1,0 @@
--- database: ./database.db
-
-ALTER TABLE users add column pin TEXT;

@@ -17,16 +17,20 @@
           class="header-logo"
         />
         <h1>{% if username %}{{ username }}'s {% endif %}Film Collection</h1>
-      </div>
-      <a href="/logout" class="logout-btn">← Switch Profile</a>
-    </header>
+        
+      <nav class="nav-links" style="display: flex; gap: 1.5rem; align-items: center;">
+    <a href="/collection" style="color: #e5e5e5; text-decoration: none;">Collection</a>
+    <a href="/watchlist" style="color: #e5e5e5; text-decoration: none;">Watchlist</a>
+    <a href="/friends" style="color: #e5e5e5; text-decoration: none;">Friends</a>
+    <a href="/logout" style="color: #ef4444; text-decoration: none;">← Switch Profile</a>
+  </nav>
+</header>
 
     <main class="page-container">
       <!-- Import Banner -->
       <div class="top-actions">
         <a href="/import" class="btn-secondary">
           + Import list of films from Letterboxd
-          <br /><br />
         </a>
       </div>
 
@@ -45,7 +49,7 @@
           <select name="format" required class="input__field">
             <option value="" disabled selected>Select Format...</option>
             <optgroup label="Physical">
-              <option value="4K Ultra HD">4K Ultra HD</option>
+              <option value="4K UHD">4K UHD</option>
               <option value="Blu-ray">Blu-ray</option>
               <option value="DVD">DVD</option>
             </optgroup>
@@ -103,10 +107,8 @@
           <div class="actions">
             {% if film.is_lent %}
             <span class="borrowed-tag">
-              Borrowed by <strong>{{ film.borrower_name }}</strong> ({{
-              film.date_lent }})
+            Borrowed by {{ film.borrower_name }}{% if film.date_lent %} ({{ film.date_lent }}){% endif %}
             </span>
-
             <form
               action="/return_film/{{ film.id }}"
               method="POST"
@@ -117,6 +119,7 @@
             {% else %}
             <a href="/lend/{{ film.id }}" class="lend-btn">[Lend Out]</a>
             {% endif %}
+            <a href="/edit_film/{{ film.id }}" class="btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; text-decoration: none;">Edit</a>
 
             <a
               href="/delete_film/{{ film.id }}"

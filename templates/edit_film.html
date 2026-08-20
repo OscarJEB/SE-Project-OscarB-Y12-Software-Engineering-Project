@@ -1,0 +1,99 @@
+{% extends 'layout.html' %} {% block content %}
+<header class="main-header">
+  <h1>Edit Film</h1>
+  <a href="/collection" class="logout-btn">← Back to Collection</a>
+</header>
+
+<main class="page-container" style="max-width: 600px; margin: 0 auto">
+  <div class="card">
+    <form
+      action="/edit_film/{{ film.id }}"
+      method="POST"
+      style="display: flex; flex-direction: column; gap: 1rem"
+    >
+      <div>
+        <label style="font-weight: 600; display: block; margin-bottom: 0.3rem"
+          >Film Title</label
+        >
+        <input
+          type="text"
+          name="title"
+          value="{{ film.title }}"
+          class="input__field"
+          style="width: 100%; box-sizing: border-box"
+          required
+        />
+      </div>
+
+      <div>
+        <label style="font-weight: 600; display: block; margin-bottom: 0.3rem"
+          >Format</label
+        >
+        <select
+          name="format"
+          class="input__field"
+          style="width: 100%; box-sizing: border-box"
+          required
+        >
+          {% for fmt in ['4K UHD', 'Blu-ray', 'DVD', 'VHS', 'Apple TV', 'Prime
+          Video', 'YouTube', 'Google Play'] %} {% if film.format == fmt %}
+          <option value="{{ fmt }}" selected>{{ fmt }}</option>
+          {% else %}
+          <option value="{{ fmt }}">{{ fmt }}</option>
+          {% endif %} {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label style="font-weight: 600; display: block; margin-bottom: 0.3rem"
+          >Boxset / Collection Name</label
+        >
+        <input
+          type="text"
+          name="collection_name"
+          value="{{ film.collection_name or '' }}"
+          placeholder="Optional"
+          class="input__field"
+          style="width: 100%; box-sizing: border-box"
+        />
+      </div>
+
+      <div>
+        <label style="font-weight: 600; display: block; margin-bottom: 0.3rem"
+          >Notes</label
+        >
+        <input
+          type="text"
+          name="notes"
+          value="{{ film.notes or '' }}"
+          placeholder="e.g. Extended Cut"
+          class="input__field"
+          style="width: 100%; box-sizing: border-box"
+        />
+      </div>
+
+      <div>
+        <label style="font-weight: 600; display: block; margin-bottom: 0.3rem"
+          >Lent To (Leave empty if not lent)</label
+        >
+        <input
+          type="text"
+          name="lent_to_name"
+          value="{{ film.borrower_name or '' }}"
+          placeholder="Borrower's Name"
+          class="input__field"
+          style="width: 100%; box-sizing: border-box"
+        />
+      </div>
+
+      <button
+        type="submit"
+        class="btn-primary"
+        style="height: 40px; font-size: 1rem; margin-top: 0.5rem"
+      >
+        Save Changes
+      </button>
+    </form>
+  </div>
+</main>
+{% endblock %}

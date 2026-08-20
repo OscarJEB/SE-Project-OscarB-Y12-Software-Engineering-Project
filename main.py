@@ -4,13 +4,9 @@ from flask import request
 from flask import redirect
 from flask import session
 from flask_cors import CORS
-import user_management as dbHandler
-import security as secure
-import bcrypt
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime
 import csv
-import io
 
 app = Flask(__name__)
 CORS(app)
@@ -33,7 +29,6 @@ def home():
     users = conn.execute("SELECT id, username FROM users").fetchall()
     conn.close()
 
-    # Catch any error flags passed in URL parameters
     error = request.args.get("error")
     return render_template("index.html", users=users, error=error)
 
@@ -50,14 +45,16 @@ def login():
     user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
 
-    # Reject access if PIN does not match
-    if user and str(user["pin"]) == pin:
-        session["user_id"] = user["id"]
-        session["username"] = user["username"]
-        return redirect("/collection")
-    else:
-        # Incorrect PIN — send back to profile selection with error parameter
-        return redirect("/?error=invalid_pin")
+    if user:
+        user_dict = dict(user)
+        user_pin = user_dict.get("pin") or user_dict.get("password")
+
+        if user_pin and str(user_pin).strip() == pin:
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            return redirect("/collection")
+
+    return redirect("/?error=invalid_pin")
 
 
 @app.route("/collection")
@@ -66,48 +63,43 @@ def collection():
         return redirect("/")
 
     search_query = request.args.get("q", "").strip()
-
     conn = get_db_connection()
 
     if search_query:
-        # Search title, format, collection_name, or notes using SQL LIKE
         query_str = "%" + search_query + "%"
         films_raw = conn.execute(
             """
-            SELECT * FROM films 
-            WHERE user_id = ? AND (
-                title LIKE ? OR 
-                format LIKE ? OR 
-                collection_name LIKE ? OR 
-                notes LIKE ?
+            SELECT f.*, f.lent_to_name AS borrower_name 
+            FROM films f
+            WHERE f.user_id = ? AND (
+                f.title LIKE ? OR 
+                f.format LIKE ? OR 
+                f.collection_name LIKE ? OR 
+                f.notes LIKE ?
             )
             """,
             (session["user_id"], query_str, query_str, query_str, query_str),
         ).fetchall()
     else:
         films_raw = conn.execute(
-            "SELECT * FROM films WHERE user_id = ?", (session["user_id"],)
+            """
+            SELECT f.*, f.lent_to_name AS borrower_name 
+            FROM films f
+            WHERE f.user_id = ?
+            """,
+            (session["user_id"],),
         ).fetchall()
 
     films = [dict(film) for film in films_raw]
-
-    for film in films:
-        if film["is_lent"]:
-            lent_info = conn.execute(
-                "SELECT borrower_name, date_lent FROM lent_films WHERE film_id = ? AND is_borrowed = 1",
-                (film["id"],),
-            ).fetchone()
-
-            if lent_info:
-                film["borrower_name"] = lent_info["borrower_name"]
-                film["date_lent"] = lent_info["date_lent"]
-
     conn.close()
+
+    error = request.args.get("error")
     return render_template(
         "collection.html",
         films=films,
         username=session.get("username"),
         search_query=search_query,
+        error=error,
     )
 
 
@@ -121,12 +113,10 @@ def add_film():
     collection_name = request.form.get("collection_name", "")
     notes = request.form.get("edition_notes", "")
 
-    # Automatically set media_type based on chosen format
     digital_formats = ["Apple TV", "Prime Video", "YouTube", "Google Play"]
     media_type = "Digital" if format_type in digital_formats else "Physical"
 
     conn = get_db_connection()
-    # Saves under current logged-in user instead of hardcoded ID 1
     conn.execute(
         """
         INSERT INTO films (user_id, title, media_type, format, collection_name, notes)
@@ -137,6 +127,19 @@ def add_film():
     conn.commit()
     conn.close()
     return redirect("/collection")
+
+
+@app.template_filter("format_date")
+def format_date(value):
+    if not value:
+        return ""
+    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M", "%d %b %Y"):
+        try:
+            dt = datetime.strptime(str(value).strip(), fmt)
+            return dt.strftime("%d %b %Y")
+        except ValueError:
+            pass
+    return value
 
 
 @app.route("/lend/<int:film_id>")
@@ -164,7 +167,6 @@ def lend_film(film_id):
 
     conn = get_db_connection()
 
-    # Check if the movie is digital
     film = conn.execute(
         "SELECT media_type FROM films WHERE id = ? AND user_id = ?",
         (film_id, session["user_id"]),
@@ -174,20 +176,18 @@ def lend_film(film_id):
         conn.close()
         return redirect("/collection?error=digital_cannot_be_lent")
 
-    borrower_name = request.form["borrower_name"]
-    date_lent = datetime.now().strftime("%Y-%m-%d %H:%M")
+    borrower_name = request.form.get("borrower_name", "").strip()
+    date_lent = datetime.now().strftime("%d %b %Y")
 
     conn.execute(
         """
-        INSERT INTO lent_films (film_id, borrower_name, date_lent, is_borrowed)
-        VALUES (?, ?, ?, 1)
-    """,
-        (film_id, borrower_name, date_lent),
-    )
-
-    conn.execute(
-        "UPDATE films SET is_lent = 1 WHERE id = ? AND user_id = ?",
-        (film_id, session["user_id"]),
+        UPDATE films 
+        SET is_lent = 1, 
+            lent_to_name = ?,
+            date_lent = ? 
+        WHERE id = ? AND user_id = ?
+        """,
+        (borrower_name, date_lent, film_id, session["user_id"]),
     )
     conn.commit()
     conn.close()
@@ -202,11 +202,11 @@ def return_film(film_id):
 
     conn = get_db_connection()
     conn.execute(
-        "UPDATE lent_films SET is_borrowed = 0 WHERE film_id = ? AND is_borrowed = 1",
-        (film_id,),
-    )
-    conn.execute(
-        "UPDATE films SET is_lent = 0 WHERE id = ? AND user_id = ?",
+        """
+        UPDATE films 
+        SET is_lent = 0, lent_to_name = NULL, date_lent = NULL 
+        WHERE id = ? AND user_id = ?
+        """,
         (film_id, session["user_id"]),
     )
     conn.commit()
@@ -235,39 +235,23 @@ def import_csv():
     if not file or not file.filename.endswith(".csv"):
         return render_template("import.html", error="Please select a valid CSV file.")
 
-    stream = io.StringIO(file.stream.read().decode("UTF-8"), newline=None)
-    lines = stream.readlines()
+    raw_content = file.stream.read().decode("utf-8-sig")
+    lines = [line for line in raw_content.splitlines() if line.strip()]
 
-    # Locate the true CSV header and skip list titles/metadata above it
-    start_index = 0
-    for idx, line in enumerate(lines):
-        if (
-            line.startswith("Position,Name")
-            or line.startswith("Date,Name")
-            or line.startswith("Title,")
-        ):
-            start_index = idx + 1  # Skip the header row itself
-            break
+    if len(lines) < 2:
+        return render_template(
+            "import.html", error="CSV file is missing data or formatted incorrectly."
+        )
 
-    reader = csv.DictReader(
-        lines[start_index:],
-        fieldnames=["Position", "Name", "Year", "URL", "Description"],
-    )
+    reader = csv.DictReader(lines[1:])
     imported_films = []
 
     for row in reader:
-        name = row.get("Name") or row.get("Title")
-        if name and name.strip() != "Name":
-            imported_films.append(
-                {
-                    "title": name.strip(),
-                    "notes": (
-                        row.get("Description", "").strip()
-                        if row.get("Description")
-                        else ""
-                    ),
-                }
-            )
+        name = row.get("Name") or row.get("Title") or row.get("Film")
+        notes = row.get("Description") or row.get("Notes") or ""
+
+        if name and name.strip():
+            imported_films.append({"title": name.strip(), "notes": notes.strip()})
 
     if not imported_films:
         return render_template("import.html", error="No valid films found in CSV.")
@@ -334,7 +318,6 @@ def delete_film(film_id):
         return redirect("/")
 
     conn = get_db_connection()
-    conn.execute("DELETE FROM lent_films WHERE film_id = ?", (film_id,))
     conn.execute(
         "DELETE FROM films WHERE id = ? AND user_id = ?", (film_id, session["user_id"])
     )
@@ -368,9 +351,6 @@ def create_profile():
     return redirect("/")
 
 
-# ---------------------------------------------------------
-# FRIEND SYSTEM & VIEWING FRIEND COLLECTIONS
-# ---------------------------------------------------------
 @app.route("/friends", methods=["GET", "POST"])
 def friends():
     if "user_id" not in session:
@@ -426,9 +406,6 @@ def view_friend_collection(friend_id):
     return render_template("friend_collection.html", friend=friend, films=films)
 
 
-# ---------------------------------------------------------
-# WATCHLIST WITH BORROWABLE TAGS
-# ---------------------------------------------------------
 @app.route("/watchlist", methods=["GET", "POST"])
 def watchlist():
     if "user_id" not in session:
@@ -472,6 +449,72 @@ def watchlist():
 
     conn.close()
     return render_template("watchlist.html", watchlist=enhanced_watchlist)
+
+
+@app.route("/edit_film/<int:film_id>", methods=["GET", "POST"])
+def edit_film(film_id):
+    if "user_id" not in session:
+        return redirect("/")
+
+    conn = get_db_connection()
+
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        format_type = request.form.get("format", "").strip()
+        collection_name = request.form.get("collection_name", "").strip()
+        notes = request.form.get("notes", "").strip()
+        lent_to_name = request.form.get("lent_to_name", "").strip()
+
+        digital_formats = ["Apple TV", "Prime Video", "YouTube", "Google Play"]
+        media_type = "Digital" if format_type in digital_formats else "Physical"
+
+        is_lent = 1 if lent_to_name else 0
+        date_lent = datetime.now().strftime("%d %b %Y") if lent_to_name else None
+
+        conn.execute(
+            """
+            UPDATE films
+            SET title = ?,
+                format = ?,
+                media_type = ?,
+                collection_name = ?,
+                notes = ?,
+                is_lent = ?,
+                lent_to_name = ?,
+                date_lent = COALESCE(date_lent, ?)
+            WHERE id = ? AND user_id = ?
+            """,
+            (
+                title,
+                format_type,
+                media_type,
+                collection_name,
+                notes,
+                is_lent,
+                lent_to_name if lent_to_name else None,
+                date_lent,
+                film_id,
+                session["user_id"],
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return redirect("/collection")
+
+    film = conn.execute(
+        """
+        SELECT f.*, f.lent_to_name AS borrower_name 
+        FROM films f
+        WHERE f.id = ? AND f.user_id = ?
+        """,
+        (film_id, session["user_id"]),
+    ).fetchone()
+    conn.close()
+
+    if not film:
+        return redirect("/collection")
+
+    return render_template("edit_film.html", film=film)
 
 
 if __name__ == "__main__":
