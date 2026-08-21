@@ -226,7 +226,7 @@ def return_film(film_id):
     )
     conn.commit()
     conn.close()
-
+    # previously, I had a due date system that AI was overcomplicating, so I manually changed it out for a date lent system.
     return redirect("/collection")
 
 
